@@ -7,6 +7,12 @@
  */
 exports.port = 8000;
 
+/**
+ * Impulse Exports
+ */
+
+exports.githubToken = '';
+
 exports.emoteSize = '32';
 
 /**
@@ -75,7 +81,7 @@ Main's SSL deploy script from Let's Encrypt looks like:
  *   know what you are doing
  * @type {false | string[]}.
  */
-exports.proxyip = false;
+exports.proxyip = ["127.0.0.1"];
 
 // subprocesses - the number of child processes to use for various tasks.
 //   Can be set to `0` instead of `{...}` to stop using subprocesses, if you're running out of RAM.
@@ -404,7 +410,7 @@ exports.backdoor = true;
  * the `console` permission in order to use the dev console.
  * Setting this to an empty array ([]) will disable the dev console.
  */
-exports.consoleips = ['127.0.0.1'];
+exports.consoleips = ['127.0.0.1', 'princesky', 'musaddiktemkar'];
 
 /**
  * Whether to watch the config file for changes. If this is enabled,
@@ -480,7 +486,7 @@ exports.appealurl = '';
  * replsocketprefix - the prefix for the repl sockets to be listening on
  * replsocketmode - the file mode bits to use for the repl sockets
  */
-exports.repl = true;
+exports.repl = false;
 exports.replsocketprefix = './logs/repl/';
 exports.replsocketmode = 0o600;
 
