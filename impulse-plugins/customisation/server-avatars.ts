@@ -1,7 +1,7 @@
 /******************************************
 * Pokemon Showdown Custom Avatar Commands *
 * Original Code By: CreatePhil And Others *
-* Updated To Typescript By: Prince Sky    *
+* Refactor By: Prince Sky.                *
 *******************************************/
 
 import { FS } from '../../lib';
@@ -85,25 +85,15 @@ class AvatarRequestSystem {
 		
 		const hasUsedRequest = await this.hasUsedRequest(userid);
 		if (hasUsedRequest) return; // Don't notify if they already used their request
-		
+
 		user.send(
 			`|pm|~Avatar System|${user.getIdentity()}|/raw ` +
-			`<div style="border: 2px solid #3498db; padding: 15px; border-radius: 10px; background: linear-gradient(135deg, #e3f2fd 0%, #bbdefb 100%);">` +
-			`<div style="text-align: center;">` +
-			`<h3 style="color: #1976d2; margin-top: 0;">ðŸŽ‰ Avatar Request Unlocked! ðŸŽ‰</h3>` +
-			`<div style="font-size: 1.1em; margin: 10px 0;">` +
-			`Congratulations on reaching <b style="color: #e74c3c;">Level 10</b>!` +
-			`</div>` +
-			`<div style="margin: 15px 0; padding: 10px; background: rgba(255,255,255,0.7); border-radius: 5px;">` +
-			`You can now request a <b>custom avatar</b> using:<br>` +
-			`<code style="background: #333; color: #fff; padding: 2px 4px; border-radius: 3px;">/customavatar request [image url]</code>` +
-			`</div>` +
-			`<div style="font-size: 0.9em; color: #666; font-style: italic;">` +
-			`âš ï¸ This is a <b>one-time only</b> request. Make sure your image is exactly what you want!<br>` +
-			`Accepted formats: .jpg, .png, .gif` +
-			`</div>` +
-			`</div>` +
-			`</div>`
+			`<p><strong> Avatar Request Unlocked! </strong></p>` +
+			`<p>Congratulations on reaching <strong>Level 10</strong>!</p>` +
+			`<p>You can now request a <strong>custom avatar</strong> using:</p>` +
+			`<p><code>/customavatar request [image url]</code></p>` +
+			`<p><small><em>⚠️ This is a <strong>one-time only</strong> request. Make sure your image is exactly what you want!</em></small></p>` +
+			`<p><small><em>Accepted formats: .jpg, .png, .gif</em></small></p>`
 		);
 	}
 }
@@ -128,20 +118,20 @@ export const commands: Chat.ChatCommands = {
 			Config.customavatars = Config.customavatars || {};
 			Config.customavatars[userId] = userId + ext;
 			await downloadImage(processedUrl, userId, ext);
-			this.sendReply(`|raw|${name}'s avatar was successfully set. Avatar:<br /><img src='${processedUrl}' width='80' height='80'>`);
+			this.sendReply(`|raw|${name}'s avatar was successfully set. Avatar:<p><img src='${processedUrl}' width='80' height='80'></p>`);
 			
 			// Remove from pending requests if it exists
 			await AvatarRequestSystem.removePendingRequest(userId);
 			
 			const targetUser = Users.get(userId);
 			if (targetUser) {
-				targetUser.popup(`|html|${Impulse.nameColor(user.name, true, true)} set your custom avatar.<br /><center><img src='${processedUrl}' width='80' height='80'></center>`);
+				targetUser.popup(`|html|${Impulse.nameColor(user.name, true, true)} set your custom avatar.<p><img src='${processedUrl}' width='80' height='80'></p><p>Check PM for instructions!</p>`);
 			}
 			this.parse(`/personalavatar ${userId},${Config.customavatars[userId]}`);
 			
-			const staffRoom = Rooms.get(STAFF_ROOM_ID);
+			let staffRoom = Rooms.get(STAFF_ROOM_ID);
 			if (staffRoom) {
-				staffRoom.add(`|html|<div class="infobox">${Impulse.nameColor(user.name, true, true)} set custom avatar for ${Impulse.nameColor(name, true, false)}: <img src='${processedUrl}' width='80' height='80'></div>`).update();
+				staffRoom.add(`|html|<div class="infobox"><center><strong>${Impulse.nameColor(user.name, true, true)} set custom avatar for ${Impulse.nameColor(userId, true, false)}:</strong><br><img src='${processedUrl}' width='80' height='80'></center></div>`).update();
 			}
 		},
 		
@@ -162,9 +152,9 @@ export const commands: Chat.ChatCommands = {
 				}
 				this.sendReply(`${target}'s avatar has been removed.`);
 				
-				const staffRoom = Rooms.get(STAFF_ROOM_ID);
+				let staffRoom = Rooms.get(STAFF_ROOM_ID);
 				if (staffRoom) {
-					staffRoom.add(`|html|<div class="infobox">${Impulse.nameColor(this.user.name, true, true)} deleted custom avatar for ${Impulse.nameColor(target, true, false)}.</div>`).update(); 
+					staffRoom.add(`|html|<div class="infobox"><strong>${Impulse.nameColor(this.user.name, true, true)} deleted custom avatar for ${Impulse.nameColor(userId, true, false)}.</strong></div>`).update(); 
 				}
 				this.parse(`/removeavatar ${userId}`);
 			} catch (err) {
@@ -195,12 +185,11 @@ export const commands: Chat.ChatCommands = {
 			await AvatarRequestSystem.markRequestUsed(this.user.id);
 			await AvatarRequestSystem.addPendingRequest(this.user.id, processedUrl);
 
-			const staffRoom = Rooms.get(STAFF_ROOM_ID);
+			let staffRoom = Rooms.get(STAFF_ROOM_ID);
 			if (staffRoom) {
-				staffRoom.add(`|html|<div class="infobox"><strong>Avatar Request from ${Impulse.nameColor(this.user.name, true, true)}</strong><br>` +
-					`Level 10+ user requesting custom avatar:<br>` +
+				staffRoom.add(`|html|<div class="infobox"><center><strong>Avatar Request from ${Impulse.nameColor(this.user.name, true, true)}</strong><br>` +
 					`<img src='${processedUrl}' width='80' height='80'><br>` +
-					`Use: <code>/customavatar set ${this.user.name}, ${processedUrl}</code></div>`).update();
+					`<button name="send" value="/customavatar set ${toID(this.user.name)}, ${processedUrl}">Set Avatar</button></center></div>`).update();
 			}
 
 			this.sendReply('Your avatar request has been submitted to staff for review. You cannot request another avatar.');
@@ -211,7 +200,7 @@ export const commands: Chat.ChatCommands = {
 			const pendingRequests = await AvatarRequestSystem.getPendingRequests();
 			
 			if (!pendingRequests.length) {
-				return this.sendReplyBox('<center><b>No pending avatar requests.</b></center>');
+				return this.sendReplyBox('<p><strong>No pending avatar requests.</strong></p>');
 			}
 
 			const tableData = pendingRequests.map(([userid, url]) => [
@@ -226,7 +215,7 @@ export const commands: Chat.ChatCommands = {
 				tableData
 			);
 
-			this.sendReplyBox(`<center><div class="pad ladder">${table}</div></center>`);
+			this.sendReplyBox(`${table}`);
 		},
 
 		async deleterequest(this: CommandContext, target: string) {
@@ -238,9 +227,9 @@ export const commands: Chat.ChatCommands = {
 			
 			this.sendReply(`Deleted avatar request for ${target}.`);
 			
-			const staffRoom = Rooms.get(STAFF_ROOM_ID);
+			let staffRoom = Rooms.get(STAFF_ROOM_ID);
 			if (staffRoom) {
-				staffRoom.add(`|html|<div class="infobox">${Impulse.nameColor(this.user.name, true, true)} deleted avatar request for ${Impulse.nameColor(target, true, false)}.</div>`).update();
+				staffRoom.add(`|html|<div class="infobox"><strong>${Impulse.nameColor(this.user.name, true, true)} deleted avatar request for ${Impulse.nameColor(userid, true, false)}.</strong></div>`).update();
 			}
 		},
 
@@ -252,12 +241,14 @@ export const commands: Chat.ChatCommands = {
 	customavatarhelp(target, room, user) {
 		if (!this.runBroadcast()) return;
 		this.sendReplyBox(
-			`<div><b><center>Custom Avatar Commands</center></b><br>` +
-			`<ul><li><code>/customavatar set [username], [image url]</code> - Sets a user's avatar (Requires: ~)</li><br>` +
-			`<li><code>/customavatar delete [username]</code> - Removes a user's avatar (Requires: ~)</li><br>` +
-			`<li><code>/customavatar request [image url]</code> - Request a custom avatar (Requires: Level 10+, one-time use only)</li><br>` +
-			`<li><code>/customavatar viewrequests</code> - View all pending avatar requests (Requires: ~)</li><br>` +
+			`<p><strong>Custom Avatar Commands</strong></p>` +
+			`<ul>` +
+			`<li><code>/customavatar set [username], [image url]</code> - Sets a user's avatar (Requires: ~)</li>` +
+			`<li><code>/customavatar delete [username]</code> - Removes a user's avatar (Requires: ~)</li>` +
+			`<li><code>/customavatar request [image url]</code> - Request a custom avatar (Requires: Level 10+, one-time use only)</li>` +
+			`<li><code>/customavatar viewrequests</code> - View all pending avatar requests (Requires: ~)</li>` +
 			`<li><code>/customavatar deleterequest [username]</code> - Delete a specific avatar request (Requires: ~)</li>` +
-			`</ul></div>`);
+			`</ul>`
+		);
 	},
 };
