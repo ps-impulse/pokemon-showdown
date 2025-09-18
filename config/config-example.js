@@ -597,7 +597,7 @@ exports.grouplist = [
 		console: true,
 		bypassall: true,
 		lockdown: true,
-		promote: '~u',
+		promote: '£u',
 		roomowner: true,
 		roombot: true,
 		roommod: true,
