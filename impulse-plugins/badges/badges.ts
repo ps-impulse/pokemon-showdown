@@ -39,7 +39,7 @@ export const commands: ChatCommands = {
 		award(target, room, user) {
 			this.checkCan('globalban');
 			
-			const [username, badgeType] = this.splitTarget(target).split(',').map(s => s.trim());
+			const [username, badgeType] = target.split(',').map(s => s.trim());
 			if (!username || !badgeType) {
 				return this.sendReply("Usage: /badges award [username], [badge type]");
 			}
