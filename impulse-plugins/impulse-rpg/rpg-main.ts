@@ -55,7 +55,7 @@ type Status = 'psn' | 'brn' | 'par' | 'slp' | 'frz';
 
 // Interface for battle state
 interface BattleState {
-	player: PlayerData;
+	playerId: string;
 	wildPokemon: RPGPokemon;
 	activePokemon: RPGPokemon;
 	turn: number;
@@ -92,16 +92,6 @@ const STARTER_POKEMON = {
 	grass: ['bulbasaur', 'chikorita', 'treecko', 'turtwig', 'snivy', 'chespin', 'rowlet', 'grookey', 'sprigatito'],
 };
 
-const MANUAL_CATCH_RATES = Impulse.MANUAL_CATCH_RATES;
-
-const MANUAL_BASE_EXP = Impulse.MANUAL_BASE_EXP;
-
-const MANUAL_EV_YIELDS = Impulse.MANUAL_EV_YIELDS;
-
-const MANUAL_LEARNSETS = Impulse.MANUAL_LEARNSETS;
-
-const MANUAL_EVOLUTIONS = Impulse.MANUAL_EVOLUTIONS;
-/*
 const MANUAL_CATCH_RATES: Record<string, number> = {
 	'rattata': 255, 'pidgey': 255, 'caterpie': 255, 'weedle': 255, 'zubat': 255, 'geodude': 255, 'magikarp': 255, 'psyduck': 190,
 };
@@ -123,15 +113,10 @@ const MANUAL_EV_YIELDS: Record<string, Partial<Record<keyof Stats, number>>> = {
 };
 
 const MANUAL_LEARNSETS: Record<string, Record<number, string[]>> = {
-	'bulbasaur': { 1: ['tackle', 'growl'], 3: ['leechseed'], 7: ['vinewhip'], 13: ['razorleaf'], 20: ['sleeppowder', 'poisonpowder'] },
-	'ivysaur': { 1: ['tackle', 'growl'], 3: ['leechseed'], 7: ['vinewhip'], 13: ['razorleaf'] },
-	'venusaur': { 1: ['tackle', 'growl'], 3: ['leechseed'], 7: ['vinewhip'], 13: ['razorleaf'], 32: ['solarbeam'] },
-	'charmander': { 1: ['scratch', 'growl'], 7: ['ember'], 10: ['smokescreen'], 16: ['dragonrage'] },
-	'charmeleon': { 1: ['scratch', 'growl'], 7: ['ember'], 10: ['smokescreen'], 16: ['dragonrage'], 22: ['firespin'] },
-	'charizard': { 1: ['scratch', 'growl'], 7: ['ember'], 10: ['smokescreen'], 16: ['dragonrage'], 22: ['firespin'], 36: ['flamethrower'] },
-	'squirtle': { 1: ['tackle', 'tailwhip'], 4: ['bubble'], 7: ['watergun'], 13: ['bite'] },
-	'wartortle': { 1: ['tackle', 'tailwhip'], 4: ['bubble'], 7: ['watergun'], 13: ['bite'], 19: ['rapidspin'] },
-	'blastoise': { 1: ['tackle', 'tailwhip'], 4: ['bubble'], 7: ['watergun'], 13: ['bite'], 19: ['rapidspin'], 32: ['hydropump'] },
+	'bulbasaur': { 0: ['curse', 'ingrain', 'petal-dance', 'toxic'], 1: ['growl', 'tackle'], 3: ['vine-whip'], 6: ['growth'], 9: ['leech-seed'], 12: ['razor-leaf'], 15: ['poison-powder', 'sleep-powder'], 18: ['seed-bomb'], 21: ['take-down'], 24: ['sweet-scent'], 27: ['synthesis'], 30: ['worry-seed'], 33: ['power-whip'], 36: ['solar-beam'] },
+	'ivysaur': { 0: ['curse', 'ingrain', 'petal-dance', 'toxic'], 1: ['growl', 'growth', 'tackle', 'vine-whip'], 9: ['leech-seed'], 12: ['razor-leaf'], 15: ['poison-powder', 'sleep-powder'], 20: ['seed-bomb'], 25: ['take-down'], 30: ['sweet-scent'], 35: ['synthesis'], 40: ['worry-seed'], 45: ['power-whip'], 50: ['solar-beam'] },
+	'venusaur': { 0: ['curse', 'ingrain', 'petal-blizzard', 'toxic'], 1: ['growl', 'growth', 'petal-dance', 'tackle', 'vine-whip'], 9: ['leech-seed'], 12: ['razor-leaf'], 15: ['poison-powder', 'sleep-powder'], 20: ['seed-bomb'], 25: ['take-down'], 30: ['sweet-scent'], 37: ['synthesis'], 44: ['worry-seed'], 51: ['power-whip'], 58: ['solar-beam'] },
+	'charmander': { 0: ['ancient-power', 'belly-drum', 'bite', 'counter', 'dragon-rush', 'dragon-tail', 'iron-tail', 'metal-claw'], 1: ['growl', 'scratch'], 4: ['ember'], 8: ['smokescreen'], 12: ['dragon-breath'], 17: ['fire-fang'], 20: ['slash'], 24: ['flamethrower'], 28: ['scary-face'], 32: ['fire-spin'], 36: ['inferno'], 40: ['flare-blitz'] },
 };
 
 const MANUAL_EVOLUTIONS: Record<string, { evoLevel: number, evoTo: string }> = {
@@ -139,7 +124,7 @@ const MANUAL_EVOLUTIONS: Record<string, { evoLevel: number, evoTo: string }> = {
 	'charmander': { evoLevel: 16, evoTo: 'charmeleon' }, 'charmeleon': { evoLevel: 36, evoTo: 'charizard' },
 	'squirtle': { evoLevel: 16, evoTo: 'wartortle' }, 'wartortle': { evoLevel: 36, evoTo: 'blastoise' },
 };
-*/
+
 // Type Chart
 const TYPE_CHART: { [type: string]: { superEffective: string[], notVeryEffective: string[], noEffect: string[] } } = {
 	Normal: { superEffective: [], notVeryEffective: ['Rock', 'Steel'], noEffect: ['Ghost'] },
@@ -269,13 +254,13 @@ function createPokemon(speciesId: string, level: number = 5): RPGPokemon {
 	const ivs = { hp: Math.floor(Math.random() * 32), atk: Math.floor(Math.random() * 32), def: Math.floor(Math.random() * 32), spa: Math.floor(Math.random() * 32), spd: Math.floor(Math.random() * 32), spe: Math.floor(Math.random() * 32) };
 	const evs = { hp: 0, atk: 0, def: 0, spa: 0, spd: 0, spe: 0 };
 	const stats = calculateStats(species, level, randomNature, ivs, evs);
-	let availableMoves = ['tackle', 'growl'];
-	const manualLearnset = MANUAL_LEARNSETS[speciesId];
+	let availableMoves = ['tackle', 'growl'].map(m => toID(m));
+	const manualLearnset = MANUAL_LEARNSETS[toID(speciesId)];
 
 	if (manualLearnset) {
 		const learnedMoves: string[] = [];
 		for (const lvl in manualLearnset) {
-			if (parseInt(lvl) <= level && parseInt(lvl) > 0) {
+			if (parseInt(lvl) <= level) {
 				learnedMoves.push(...manualLearnset[lvl].map(move => toID(move)));
 			}
 		}
@@ -359,7 +344,7 @@ function generatePokemonInfoHTML(
         }
     }
 
-	let html = `<div style="border: 1px solid #ccc; padding: 10px; margin: 5px; border-radius: 5px;"><strong>${pokemon.species}</strong> (Level ${pokemon.level})${statusTag}${statStageTags}<br><small>Type: ${species.types.join('/')}</small><br><div style="background: #f0f0f0; border-radius: 10px; padding: 2px; margin: 5px 0;"><div style="background: ${hpBarColor}; width: ${hpPercentage}%; height: 10px; border-radius: 8px;"></div></div>HP: ${pokemon.hp}/${pokemon.maxHp}<br><div style="background: #f0f0f0; border-radius: 10px; padding: 2px; margin: 5px 0;"><div style="background: #6c9be8; width: ${expPercentage}%; height: 8px; border-radius: 8px;"></div></div>EXP: ${pokemon.experience}/${pokemon.expToNextLevel}<br>Nature: ${pokemon.nature}<br>Ability: ${pokemon.ability || 'Unknown'}<br>Moves: ${pokemon.moves.slice(0, 4).join(', ') || 'None'}`;
+	let html = `<div style="border: 1px solid #ccc; padding: 10px; margin: 5px; border-radius: 5px;"><strong>${pokemon.species}</strong> (Level ${pokemon.level})${statusTag}${statStageTags}<br><small>Type: ${species.types.join('/')}</small><br><div style="background: #f0f0f0; border-radius: 10px; padding: 2px; margin: 5px 0;"><div style="background: ${hpBarColor}; width: ${hpPercentage}%; height: 10px; border-radius: 8px;"></div></div>HP: ${pokemon.hp}/${pokemon.maxHp}<br><div style="background: #f0f0f0; border-radius: 10px; padding: 2px; margin: 5px 0;"><div style="background: #6c9be8; width: ${expPercentage}%; height: 8px; border-radius: 8px;"></div></div>EXP: ${pokemon.experience}/${pokemon.expToNextLevel}<br>Nature: ${pokemon.nature}<br>Ability: ${pokemon.ability || 'Unknown'}<br>Moves: ${pokemon.moves.map(m => Dex.moves.get(m).name).slice(0, 4).join(', ') || 'None'}`;
 	if (pokemon.item) {
 		html += `<br>Held Item: ${pokemon.item}`;
 	}
@@ -525,12 +510,13 @@ function handleLearningMoves(player: PlayerData, pokemon: RPGPokemon): { message
 	if (!movesToLearn || movesToLearn.length === 0) return { messages };
 	const movesToQueue: string[] = [];
 	for (const newMoveId of movesToLearn) {
-		if (pokemon.moves.includes(newMoveId)) continue;
+		const moveId = toID(newMoveId);
+		if (pokemon.moves.includes(moveId)) continue;
 		if (pokemon.moves.length < 4) {
-			pokemon.moves.push(newMoveId);
-			messages.push(`**${pokemon.species} learned ${Dex.moves.get(newMoveId).name}!**`);
+			pokemon.moves.push(moveId);
+			messages.push(`**${pokemon.species} learned ${Dex.moves.get(moveId).name}!**`);
 		} else {
-			movesToQueue.push(newMoveId);
+			movesToQueue.push(moveId);
 		}
 	}
 	if (movesToQueue.length > 0) {
@@ -629,7 +615,8 @@ function generateDefeatHTML(moneyLost: number): string {
 
 function generateSwitchPokemonHTML(battle: BattleState, message: string): string {
 	let html = `<div class="infobox"><h2>${battle.activePokemon.species} fainted!</h2><p>${message}</p><p>Choose your next Pokemon:</p>`;
-	for (const pokemon of battle.player.party) {
+	const player = getPlayerData(battle.playerId);
+	for (const pokemon of player.party) {
 		if (pokemon.hp > 0) {
 			html += `<div style="border: 1px solid #ccc; padding: 8px; margin: 5px; border-radius: 5px;"><strong>${pokemon.species}</strong> (Lvl ${pokemon.level}) | HP: ${pokemon.hp}/${pokemon.maxHp}<button name="send" value="/rpg battleaction switch ${pokemon.id}" class="button" style="float: right;">Switch In</button></div>`;
 		}
@@ -1013,7 +1000,7 @@ export const commands: ChatCommands = {
 				const wildPokemon = createPokemon(wildSpeciesId, wildLevel);
 				const initialStages = { atk: 0, def: 0, spa: 0, spd: 0, spe: 0 };
 				activeBattles.set(user.id, { 
-					player, 
+					playerId: user.id, 
 					wildPokemon, 
 					activePokemon: firstPokemon, 
 					turn: 0,
@@ -1041,11 +1028,16 @@ export const commands: ChatCommands = {
 			'move'(target, room, user) {
 				const battle = activeBattles.get(user.id);
 				if (!battle) return this.errorReply("You are not in a battle.");
+				
+				const player = getPlayerData(battle.playerId);
+				const playerPokemon = player.party.find(p => p.id === battle.activePokemon.id);
+				if (!playerPokemon) return this.errorReply("Active pokemon not found.");
+
 				const moveId = toID(target);
-				if (!battle.activePokemon.moves.includes(moveId)) return this.errorReply("Invalid move.");
+				if (!playerPokemon.moves.includes(moveId)) return this.errorReply("Invalid move.");
 
 				const messageLog: string[] = [];
-				const { activePokemon: playerPokemon, wildPokemon } = battle;
+				const { wildPokemon } = battle;
 
 				const playerAction = { pokemon: playerPokemon, move: Dex.moves.get(moveId) };
 				const wildAction = { pokemon: wildPokemon, move: Dex.moves.get(wildPokemon.moves[Math.floor(Math.random() * wildPokemon.moves.length)]) };
@@ -1206,7 +1198,9 @@ export const commands: ChatCommands = {
 				}
 
 				if (wildPokemon.hp > 0 && playerPokemon.hp > 0) {
-					for (const turn of turnOrder) {
+					// Create a fresh turn order array for end-of-turn effects, in case a pokemon fainted
+					const liveTurnOrder = turnOrder.filter(t => t.pokemon.hp > 0);
+					for (const turn of liveTurnOrder) {
 						const pokemon = turn.pokemon;
 						const status = (pokemon === playerPokemon) ? battle.playerStatus : battle.wildStatus;
 						if (status === 'brn' || status === 'psn') {
@@ -1218,22 +1212,22 @@ export const commands: ChatCommands = {
 					}
 				}
 
-				if (wildPokemon.hp === 0) {
+				if (wildPokemon.hp <= 0) {
 					activeBattles.delete(user.id);
 					const moneyGained = Math.floor(wildPokemon.level * 10);
-					battle.player.money += moneyGained;
-					const { messages: expMessages } = gainExperience(battle.player, playerPokemon, wildPokemon, room, user);
-					if (battle.player.pendingMoveLearnQueue?.moveIds.length) {
-						return this.sendReply(`|uhtmlchange|rpg-${user.id}|${generateMoveLearnHTML(battle.player)}`);
+					player.money += moneyGained;
+					const { messages: expMessages } = gainExperience(player, playerPokemon, wildPokemon, room, user);
+					if (player.pendingMoveLearnQueue?.moveIds.length) {
+						return this.sendReply(`|uhtmlchange|rpg-${user.id}|${generateMoveLearnHTML(player)}`);
 					}
 					return this.sendReply(`|uhtmlchange|rpg-${user.id}|${generateVictoryHTML(wildPokemon, expMessages, moneyGained)}`);
 				}
 
-				if (playerPokemon.hp === 0) {
-					if (!battle.player.party.some(p => p.hp > 0)) {
+				if (playerPokemon.hp <= 0) {
+					if (!player.party.some(p => p.hp > 0)) {
 						activeBattles.delete(user.id);
-						const moneyLost = Math.min(battle.player.money, 100);
-						battle.player.money -= moneyLost;
+						const moneyLost = Math.min(player.money, 100);
+						player.money -= moneyLost;
 						return this.sendReply(`|uhtmlchange|rpg-${user.id}|${generateDefeatHTML(moneyLost)}`);
 					} else {
 						return this.sendReply(`|uhtmlchange|rpg-${user.id}|${generateSwitchPokemonHTML(battle, "Choose a Pokemon to switch to.")}`);
@@ -1245,12 +1239,18 @@ export const commands: ChatCommands = {
 			'switch'(target, room, user) {
 				const battle = activeBattles.get(user.id);
 				if (!battle) return this.errorReply("You are not in a battle.");
+				const player = getPlayerData(battle.playerId);
+
 				const pokemonId = target.trim();
-				const nextPokemon = battle.player.party.find(p => p.id === pokemonId && p.hp > 0);
+				const nextPokemon = player.party.find(p => p.id === pokemonId && p.hp > 0);
 				if (!nextPokemon) return this.errorReply("Invalid Pokemon or it has fainted.");
 				if (nextPokemon.id === battle.activePokemon.id) return this.errorReply("This Pokemon is already in battle.");
+				
 				battle.activePokemon = nextPokemon;
 				battle.playerStatStages = { atk: 0, def: 0, spa: 0, spd: 0, spe: 0 };
+				battle.playerStatus = null;
+				battle.playerSleepCounter = 0;
+				
 				const messageLog = [`Go, ${nextPokemon.species}!`];
 				const wildMoveId = battle.wildPokemon.moves[Math.floor(Math.random() * battle.wildPokemon.moves.length)];
 				const wildResult = calculateDamage(battle.wildPokemon, battle.activePokemon, wildMoveId, battle.wildStatStages, battle.playerStatStages, battle.wildStatus);
@@ -1262,9 +1262,9 @@ export const commands: ChatCommands = {
 			'catch'(target, room, user) {
 				const battle = activeBattles.get(user.id);
 				if (!battle) return this.errorReply("You are not in a battle.");
+				const player = getPlayerData(battle.playerId);
 
 				const [, ballType = 'pokeball'] = target.split(' ');
-				const player = battle.player;
 
 				if (!player.inventory.has(ballType)) {
 					return this.errorReply(`You don't have any ${ITEMS_DATABASE[ballType]?.name || 'of that item'}!`);
@@ -1296,11 +1296,11 @@ export const commands: ChatCommands = {
 						messageLog.push(`${battle.activePokemon.species} took ${wildResult.damage} damage!`);
 					}
 					
-					if (battle.activePokemon.hp === 0) {
-						if (!battle.player.party.some(p => p.hp > 0)) {
+					if (battle.activePokemon.hp <= 0) {
+						if (!player.party.some(p => p.hp > 0)) {
 							activeBattles.delete(user.id);
-							const moneyLost = Math.min(battle.player.money, 100);
-							battle.player.money -= moneyLost;
+							const moneyLost = Math.min(player.money, 100);
+							player.money -= moneyLost;
 							return this.sendReply(`|uhtmlchange|rpg-${user.id}|${generateDefeatHTML(moneyLost)}`);
 						} else {
 							return this.sendReply(`|uhtmlchange|rpg-${user.id}|${generateSwitchPokemonHTML(battle, "Choose a Pokemon to switch to.")}`);
