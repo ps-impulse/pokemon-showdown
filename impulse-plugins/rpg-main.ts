@@ -1,9 +1,9 @@
 // Pokemon RPG Plugin for Pokemon Showdown
 
 //import { MANUAL_EVOLUTIONS } from './evolutions.ts';
-import { MANUAL_LEARNSETS } from '../dist/impulse-plugins/learnsets.js';
-import { MANUAL_BASE_EXP } from '../dist/impulse-plugins/base-exp.js';
-import { MANUAL_EV_YIELDS } from '../dist/impulse-plugins/ev-yields.js';
+//import { MANUAL_LEARNSETS } from '../dist/impulse-plugins/learnsets.js';
+//import { MANUAL_BASE_EXP } from '../dist/impulse-plugins/base-exp.js';
+//import { MANUAL_EV_YIELDS } from '../dist/impulse-plugins/ev-yields.js';
 
 // Interface for RPG Pokemon data
 interface RPGPokemon {
@@ -89,8 +89,8 @@ const STARTER_POKEMON = {
 };
 
 // Manual Base Experience Database
-/*const MANUAL_BASE_EXP: Record<string, number> = {
-	'rattata': 51, 'pidgey': 50, 'caterpie': 39, 'weedle': 39, 'zubat': 49, 'geodude': 60, 'magikarp': 40, 'psyduck': 64,
+const MANUAL_BASE_EXP: Record<string, number> = {
+	'rattata': 100, 'pidgey': 100, 'caterpie': 100, 'weedle': 100, 'zubat': 100, 'geodude': 100, 'magikarp': 100, 'psyduck': 100,
 	'bulbasaur': 64, 'ivysaur': 142, 'venusaur': 236, 'charmander': 65, 'charmeleon': 142, 'charizard': 240, 'squirtle': 63, 'wartortle': 142, 'blastoise': 239,
 	'chikorita': 64, 'bayleef': 142, 'meganium': 236, 'cyndaquil': 65, 'quilava': 142, 'typhlosion': 240, 'totodile': 66, 'croconaw': 142, 'feraligatr': 239,
 };
@@ -117,7 +117,6 @@ const MANUAL_LEARNSETS: Record<string, Record<number, string[]>> = {
 	'wartortle': { 1: ['tackle', 'tailwhip'], 4: ['bubble'], 7: ['watergun'], 13: ['bite'], 19: ['rapidspin'] },
 	'blastoise': { 1: ['tackle', 'tailwhip'], 4: ['bubble'], 7: ['watergun'], 13: ['bite'], 19: ['rapidspin'], 32: ['hydropump'] },
 };
-*/
 
 // Manual Evolution Database
 const MANUAL_EVOLUTIONS: Record<string, { evoLevel: number, evoTo: string }> = {
