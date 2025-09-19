@@ -16,7 +16,7 @@ interface RPGPokemon {
 	growthRate: string;
 	experience: number;
 	expToNextLevel: number;
-	moves: string[];
+	moves: { id: string; pp: number }[];
 	nature: string;
 	ability?: string;
 	item?: string;
@@ -275,7 +275,7 @@ function createPokemon(speciesId: string, level: number = 5): RPGPokemon {
 	const ivs = { hp: Math.floor(Math.random() * 32), atk: Math.floor(Math.random() * 32), def: Math.floor(Math.random() * 32), spa: Math.floor(Math.random() * 32), spd: Math.floor(Math.random() * 32), spe: Math.floor(Math.random() * 32) };
 	const evs = { hp: 0, atk: 0, def: 0, spa: 0, spd: 0, spe: 0 };
 	const stats = calculateStats(species, level, randomNature, ivs, evs);
-	let availableMoves = ['tackle', 'growl'].map(m => toID(m));
+	let availableMoves: string[] = ['tackle', 'growl'];
 	const manualLearnset = MANUAL_LEARNSETS[toID(speciesId)];
 
 	if (manualLearnset) {
@@ -297,11 +297,16 @@ function createPokemon(speciesId: string, level: number = 5): RPGPokemon {
 			}
 		} catch (e) { /* fallback */ }
 	}
+	
+	const movesWithPP = availableMoves.map(moveId => {
+		const moveData = Dex.moves.get(moveId);
+		return { id: moveId, pp: moveData.pp || 5 };
+	});
 
 	const abilities = Object.values(species.abilities);
 	const randomAbility = abilities.length ? abilities[Math.floor(Math.random() * abilities.length)] : 'No Ability';
 	const growthRate = species.growthRate;
-	return { species: species.name, level: level, hp: stats.maxHp, growthRate: growthRate, experience: calculateTotalExpForLevel(growthRate, level), expToNextLevel: calculateTotalExpForLevel(growthRate, level + 1), moves: availableMoves, ability: randomAbility, nature: randomNature, id: generateUniqueId(), ivs: ivs, evs: evs, ...stats };
+	return { species: species.name, level: level, hp: stats.maxHp, growthRate: growthRate, experience: calculateTotalExpForLevel(growthRate, level), expToNextLevel: calculateTotalExpForLevel(growthRate, level + 1), moves: movesWithPP, ability: randomAbility, nature: randomNature, id: generateUniqueId(), ivs: ivs, evs: evs, ...stats };
 }
 
 function storePokemonInPC(player: PlayerData, pokemon: RPGPokemon): void {
@@ -365,7 +370,12 @@ function generatePokemonInfoHTML(
         }
     }
 
-	let html = `<div style="border: 1px solid #ccc; padding: 10px; margin: 5px; border-radius: 5px;"><strong>${pokemon.species}</strong> (Level ${pokemon.level})${statusTag}${statStageTags}<br><small>Type: ${species.types.join('/')}</small><br><div style="background: #f0f0f0; border-radius: 10px; padding: 2px; margin: 5px 0;"><div style="background: ${hpBarColor}; width: ${hpPercentage}%; height: 10px; border-radius: 8px;"></div></div>HP: ${pokemon.hp}/${pokemon.maxHp}<br><div style="background: #f0f0f0; border-radius: 10px; padding: 2px; margin: 5px 0;"><div style="background: #6c9be8; width: ${expPercentage}%; height: 8px; border-radius: 8px;"></div></div>EXP: ${pokemon.experience}/${pokemon.expToNextLevel}<br>Nature: ${pokemon.nature}<br>Ability: ${pokemon.ability || 'Unknown'}<br>Moves: ${pokemon.moves.map(m => Dex.moves.get(m).name).slice(0, 4).join(', ') || 'None'}`;
+	const movesDisplay = pokemon.moves.map(m => {
+        const moveData = Dex.moves.get(m.id);
+        return `${moveData.name} (${m.pp}/${moveData.pp})`;
+    }).slice(0, 4).join(', ') || 'None';
+
+	let html = `<div style="border: 1px solid #ccc; padding: 10px; margin: 5px; border-radius: 5px;"><strong>${pokemon.species}</strong> (Level ${pokemon.level})${statusTag}${statStageTags}<br><small>Type: ${species.types.join('/')}</small><br><div style="background: #f0f0f0; border-radius: 10px; padding: 2px; margin: 5px 0;"><div style="background: ${hpBarColor}; width: ${hpPercentage}%; height: 10px; border-radius: 8px;"></div></div>HP: ${pokemon.hp}/${pokemon.maxHp}<br><div style="background: #f0f0f0; border-radius: 10px; padding: 2px; margin: 5px 0;"><div style="background: #6c9be8; width: ${expPercentage}%; height: 8px; border-radius: 8px;"></div></div>EXP: ${pokemon.experience}/${pokemon.expToNextLevel}<br>Nature: ${pokemon.nature}<br>Ability: ${pokemon.ability || 'Unknown'}<br>Moves: ${movesDisplay}`;
 	if (pokemon.item) {
 		html += `<br>Held Item: ${pokemon.item}`;
 	}
@@ -378,7 +388,11 @@ function generatePokemonInfoHTML(
 
 function generatePokemonSummaryHTML(pokemon: RPGPokemon): string {
 	const totalEVs = Object.values(pokemon.evs).reduce((a, b) => a + b, 0);
-	return `<div class="infobox"><h2>${pokemon.species}'s Summary</h2><div style="display: flex; justify-content: space-between; align-items: flex-start;"><div style="flex-basis: 48%;"><p><strong>Level:</strong> ${pokemon.level}</p><p><strong>Nature:</strong> ${pokemon.nature}</p><p><strong>Ability:</strong> ${pokemon.ability || 'Unknown'}</p><p><strong>Held Item:</strong> ${pokemon.item || 'None'}</p></div><div style="flex-basis: 48%;"><h4>Stats</h4><table style="width: 100%; border-collapse: collapse;"><tr><td style="padding: 2px;">HP</td><td style="padding: 2px; text-align: right;">${pokemon.maxHp}</td></tr><tr><td style="padding: 2px;">Attack</td><td style="padding: 2px; text-align: right;">${pokemon.atk}</td></tr><tr><td style="padding: 2px;">Defense</td><td style="padding: 2px; text-align: right;">${pokemon.def}</td></tr><tr><td style="padding: 2px;">Sp. Atk</td><td style="padding: 2px; text-align: right;">${pokemon.spa}</td></tr><tr><td style="padding: 2px;">Sp. Def</td><td style="padding: 2px; text-align: right;">${pokemon.spd}</td></tr><tr><td style="padding: 2px;">Speed</td><td style="padding: 2px; text-align: right;">${pokemon.spe}</td></tr></table></div></div><hr /><div style="display: flex; justify-content: space-between; align-items: flex-start;"><div style="flex-basis: 48%;"><h4>IVs</h4><table style="width: 100%; border-collapse: collapse;"><tr><td style="padding: 2px;">HP</td><td style="padding: 2px; text-align: right;">${pokemon.ivs.hp}</td></tr><tr><td style="padding: 2px;">Attack</td><td style="padding: 2px; text-align: right;">${pokemon.ivs.atk}</td></tr><tr><td style="padding: 2px;">Defense</td><td style="padding: 2px; text-align: right;">${pokemon.ivs.def}</td></tr><tr><td style="padding: 2px;">Sp. Atk</td><td style="padding: 2px; text-align: right;">${pokemon.ivs.spa}</td></tr><tr><td style="padding: 2px;">Sp. Def</td><td style="padding: 2px; text-align: right;">${pokemon.ivs.spd}</td></tr><tr><td style="padding: 2px;">Speed</td><td style="padding: 2px; text-align: right;">${pokemon.ivs.spe}</td></tr></table></div><div style="flex-basis: 48%;"><h4>EVs</h4><table style="width: 100%; border-collapse: collapse;"><tr><td style="padding: 2px;">HP</td><td style="padding: 2px; text-align: right;">${pokemon.evs.hp}</td></tr><tr><td style="padding: 2px;">Attack</td><td style="padding: 2px; text-align: right;">${pokemon.evs.atk}</td></tr><tr><td style="padding: 2px;">Defense</td><td style="padding: 2px; text-align: right;">${pokemon.evs.def}</td></tr><tr><td style="padding: 2px;">Sp. Atk</td><td style="padding: 2px; text-align: right;">${pokemon.evs.spa}</td></tr><tr><td style="padding: 2px;">Sp. Def</td><td style="padding: 2px; text-align: right;">${pokemon.evs.spd}</td></tr><tr><td style="padding: 2px;">Speed</td><td style="padding: 2px; text-align: right;">${pokemon.evs.spe}</td></tr></table><small>Total: ${totalEVs} / 510</small></div></div><hr /><div><h4>Moves</h4><div style="display: grid; grid-template-columns: repeat(2, 1fr); gap: 5px;">${pokemon.moves.map(moveId => `<div style="text-align: center; padding: 5px; background: #f0f0f0; border-radius: 5px;">${Dex.moves.get(moveId).name}</div>`).join('')}</div></div><p style="margin-top: 15px;"><button name="send" value="/rpg party" class="button">← Back to Party</button></p></div>`;
+	const movesSummary = pokemon.moves.map(move => {
+		const moveData = Dex.moves.get(move.id);
+		return `<div style="text-align: center; padding: 5px; background: #f0f0f0; border-radius: 5px;">${moveData.name}<br><small>PP: ${move.pp}/${moveData.pp}</small></div>`;
+	}).join('');
+	return `<div class="infobox"><h2>${pokemon.species}'s Summary</h2><div style="display: flex; justify-content: space-between; align-items: flex-start;"><div style="flex-basis: 48%;"><p><strong>Level:</strong> ${pokemon.level}</p><p><strong>Nature:</strong> ${pokemon.nature}</p><p><strong>Ability:</strong> ${pokemon.ability || 'Unknown'}</p><p><strong>Held Item:</strong> ${pokemon.item || 'None'}</p></div><div style="flex-basis: 48%;"><h4>Stats</h4><table style="width: 100%; border-collapse: collapse;"><tr><td style="padding: 2px;">HP</td><td style="padding: 2px; text-align: right;">${pokemon.maxHp}</td></tr><tr><td style="padding: 2px;">Attack</td><td style="padding: 2px; text-align: right;">${pokemon.atk}</td></tr><tr><td style="padding: 2px;">Defense</td><td style="padding: 2px; text-align: right;">${pokemon.def}</td></tr><tr><td style="padding: 2px;">Sp. Atk</td><td style="padding: 2px; text-align: right;">${pokemon.spa}</td></tr><tr><td style="padding: 2px;">Sp. Def</td><td style="padding: 2px; text-align: right;">${pokemon.spd}</td></tr><tr><td style="padding: 2px;">Speed</td><td style="padding: 2px; text-align: right;">${pokemon.spe}</td></tr></table></div></div><hr /><div style="display: flex; justify-content: space-between; align-items: flex-start;"><div style="flex-basis: 48%;"><h4>IVs</h4><table style="width: 100%; border-collapse: collapse;"><tr><td style="padding: 2px;">HP</td><td style="padding: 2px; text-align: right;">${pokemon.ivs.hp}</td></tr><tr><td style="padding: 2px;">Attack</td><td style="padding: 2px; text-align: right;">${pokemon.ivs.atk}</td></tr><tr><td style="padding: 2px;">Defense</td><td style="padding: 2px; text-align: right;">${pokemon.ivs.def}</td></tr><tr><td style="padding: 2px;">Sp. Atk</td><td style="padding: 2px; text-align: right;">${pokemon.ivs.spa}</td></tr><tr><td style="padding: 2px;">Sp. Def</td><td style="padding: 2px; text-align: right;">${pokemon.ivs.spd}</td></tr><tr><td style="padding: 2px;">Speed</td><td style="padding: 2px; text-align: right;">${pokemon.ivs.spe}</td></tr></table></div><div style="flex-basis: 48%;"><h4>EVs</h4><table style="width: 100%; border-collapse: collapse;"><tr><td style="padding: 2px;">HP</td><td style="padding: 2px; text-align: right;">${pokemon.evs.hp}</td></tr><tr><td style="padding: 2px;">Attack</td><td style="padding: 2px; text-align: right;">${pokemon.evs.atk}</td></tr><tr><td style="padding: 2px;">Defense</td><td style="padding: 2px; text-align: right;">${pokemon.evs.def}</td></tr><tr><td style="padding: 2px;">Sp. Atk</td><td style="padding: 2px; text-align: right;">${pokemon.evs.spa}</td></tr><tr><td style="padding: 2px;">Sp. Def</td><td style="padding: 2px; text-align: right;">${pokemon.evs.spd}</td></tr><tr><td style="padding: 2px;">Speed</td><td style="padding: 2px; text-align: right;">${pokemon.evs.spe}</td></tr></table><small>Total: ${totalEVs} / 510</small></div></div><hr /><div><h4>Moves</h4><div style="display: grid; grid-template-columns: repeat(2, 1fr); gap: 5px;">${movesSummary}</div></div><p style="margin-top: 15px;"><button name="send" value="/rpg party" class="button">← Back to Party</button></p></div>`;
 }
 
 function generateEggMoveSelectionHTML(pokemon: RPGPokemon, eggMoves: string[]): string {
@@ -583,10 +597,11 @@ function handleLearningMoves(player: PlayerData, pokemon: RPGPokemon): { message
 	const movesToQueue: string[] = [];
 	for (const newMoveId of movesToLearn) {
 		const moveId = toID(newMoveId);
-		if (pokemon.moves.includes(moveId)) continue;
+		if (pokemon.moves.some(m => m.id === moveId)) continue;
 		if (pokemon.moves.length < 4) {
-			pokemon.moves.push(moveId);
-			messages.push(`**${pokemon.species} learned ${Dex.moves.get(moveId).name}!**`);
+			const moveData = Dex.moves.get(moveId);
+			pokemon.moves.push({ id: moveId, pp: moveData.pp || 5 });
+			messages.push(`**${pokemon.species} learned ${moveData.name}!**`);
 		} else {
 			movesToQueue.push(moveId);
 		}
@@ -637,6 +652,11 @@ function gainExperience(player: PlayerData, pokemon: RPGPokemon, defeatedPokemon
 	while (pokemon.experience >= pokemon.expToNextLevel) {
 		messages.push(...levelUp(pokemon));
 		leveledUp = true;
+		// After leveling up, restore HP and PP
+		pokemon.hp = pokemon.maxHp;
+		pokemon.moves.forEach(move => {
+			move.pp = Dex.moves.get(move.id).pp || 5;
+		});
 		const evolveMessage = checkEvolution(player, pokemon, room, user);
 		if (evolveMessage) {
 			messages.push(evolveMessage);
@@ -674,7 +694,13 @@ function checkEvolution(player: PlayerData, pokemon: RPGPokemon, room: ChatRoom,
 }
 
 function generateBattleHTML(battle: BattleState, messageLog: string[] = []): string {
-	return `<div class="infobox"><h2>Wild Battle!</h2><div style="display: flex; justify-content: space-around;"><div><h3>Your Pokemon</h3>${generatePokemonInfoHTML(battle.activePokemon, false, battle.playerStatus, battle.playerStatStages)}</div><div><h3>Wild Pokemon</h3>${generatePokemonInfoHTML(battle.wildPokemon, false, battle.wildStatus, battle.wildStatStages)}</div></div><hr /><div style="padding: 5px; margin: 10px 0; border: 1px solid #666; background: #f0f0f0; min-height: 50px;">${messageLog.join('<br>')}</div><p>What will ${battle.activePokemon.species} do?</p><div style="display: grid; grid-template-columns: repeat(2, 1fr); gap: 5px;">${battle.activePokemon.moves.map(moveId => `<button name="send" value="/rpg battleaction move ${moveId}" class="button">${Dex.moves.get(moveId).name}</button>`).join('')}</div><p style="margin-top: 15px;"><button name="send" value="/rpg battleaction catchmenu" class="button">⚽ Catch</button><button name="send" value="/rpg battleaction run" class="button">🏃 Run</button></p></div>`;
+	const moveButtons = battle.activePokemon.moves.map(move => {
+        const moveData = Dex.moves.get(move.id);
+        const isDisabled = move.pp === 0;
+        return `<button name="send" value="/rpg battleaction move ${move.id}" class="button" ${isDisabled ? 'disabled style="background-color:#888;"' : ''}>${moveData.name}<br><small>PP: ${move.pp} / ${moveData.pp}</small></button>`;
+    }).join('');
+
+	return `<div class="infobox"><h2>Wild Battle!</h2><div style="display: flex; justify-content: space-around;"><div><h3>Your Pokemon</h3>${generatePokemonInfoHTML(battle.activePokemon, false, battle.playerStatus, battle.playerStatStages)}</div><div><h3>Wild Pokemon</h3>${generatePokemonInfoHTML(battle.wildPokemon, false, battle.wildStatus, battle.wildStatStages)}</div></div><hr /><div style="padding: 5px; margin: 10px 0; border: 1px solid #666; background: #f0f0f0; min-height: 50px;">${messageLog.join('<br>')}</div><p>What will ${battle.activePokemon.species} do?</p><div style="display: grid; grid-template-columns: repeat(2, 1fr); gap: 5px;">${moveButtons}</div><p style="margin-top: 15px;"><button name="send" value="/rpg battleaction catchmenu" class="button">⚽ Catch</button><button name="send" value="/rpg battleaction run" class="button">🏃 Run</button></p></div>`;
 }
 
 function generateCatchMenuHTML(player: PlayerData, battle: BattleState): string {
@@ -728,8 +754,8 @@ function generateMoveLearnHTML(player: PlayerData): string {
 		return `<h2>Error: Invalid Pokemon or move data.</h2><p><button name="send" value="/rpg menu" class="button">Back to Menu</button></p>`;
 	}
 	let html = `<div class="infobox"><h2>Move Learning</h2><p><strong>${pokemon.species}</strong> wants to learn the move <strong>${newMove.name}</strong>!</p><p>However, ${pokemon.species} already knows four moves. Should a move be forgotten to make space for ${newMove.name}?</p><hr /><div style="display: grid; grid-template-columns: repeat(2, 1fr); gap: 10px;">`;
-	for (const moveId of pokemon.moves) {
-		html += `<button name="send" value="/rpg learnmove ${moveId}" class="button">${Dex.moves.get(moveId).name}</button>`;
+	for (const move of pokemon.moves) {
+		html += `<button name="send" value="/rpg learnmove ${move.id}" class="button">${Dex.moves.get(move.id).name}</button>`;
 	}
 	html += `</div><hr /><p>...or, give up on learning the move <strong>${newMove.name}</strong>?</p><button name="send" value="/rpg learnmove skip" class="button" style="background-color: #d9534f; color: white;">Forget ${newMove.name}</button></div>`;
 	return html;
@@ -819,12 +845,13 @@ export const commands: ChatCommands = {
 			if (moveToReplace === 'skip') {
 				message = `<strong>${pokemon.species}</strong> did not learn <strong>${newMoveName}</strong>.`;
 			} else {
-				const moveIndex = pokemon.moves.findIndex(m => m === moveToReplace);
+				const moveIndex = pokemon.moves.findIndex(m => m.id === moveToReplace);
 				if (moveIndex === -1) {
 					return this.errorReply("That move is not known by your Pokemon.");
 				}
-				const oldMoveName = Dex.moves.get(pokemon.moves[moveIndex]).name;
-				pokemon.moves[moveIndex] = newMoveId;
+				const oldMoveName = Dex.moves.get(pokemon.moves[moveIndex].id).name;
+				const newMoveData = Dex.moves.get(newMoveId);
+				pokemon.moves[moveIndex] = { id: newMoveId, pp: newMoveData.pp || 5 };
 				message = `1, 2, and... Poof! <strong>${pokemon.species}</strong> forgot <strong>${oldMoveName}</strong> and learned <strong>${newMoveName}</strong>!`;
 			}
 			queue.moveIds.shift();
@@ -853,8 +880,9 @@ export const commands: ChatCommands = {
 				return this.errorReply("This is not a valid Egg Move for this Pokemon.");
 			}
 			if (pokemon.moves.length < 4) {
-				pokemon.moves.push(newMoveId);
-				const resultHTML = `<div class="infobox"><h2>Move Learned!</h2><p><strong>${pokemon.species}</strong> learned <strong>${Dex.moves.get(newMoveId).name}</strong>!</p>${generatePokemonInfoHTML(pokemon)}<p><button name="send" value="/rpg party" class="button">Back to Party</button></p></div>`;
+				const newMoveData = Dex.moves.get(newMoveId);
+				pokemon.moves.push({ id: newMoveId, pp: newMoveData.pp || 5 });
+				const resultHTML = `<div class="infobox"><h2>Move Learned!</h2><p><strong>${pokemon.species}</strong> learned <strong>${newMoveData.name}</strong>!</p>${generatePokemonInfoHTML(pokemon)}<p><button name="send" value="/rpg party" class="button">Back to Party</button></p></div>`;
 				this.sendReply(`|uhtmlchange|rpg-${user.id}|${resultHTML}`);
 			} else {
 				player.pendingMoveLearnQueue = { pokemonId: pokemon.id, moveIds: [newMoveId] };
@@ -979,7 +1007,7 @@ export const commands: ChatCommands = {
 				if (!targetPokemon) return this.errorReply("Pokemon not found in your party.");
 				const speciesId = toID(targetPokemon.species);
 				const allEggMoves = MANUAL_LEARNSETS[speciesId]?.[0] || [];
-				const learnableEggMoves = allEggMoves.filter(moveId => !targetPokemon.moves.includes(moveId));
+				const learnableEggMoves = allEggMoves.filter(moveId => !targetPokemon.moves.some(m => m.id === moveId));
 
 				if (learnableEggMoves.length === 0) {
 					return this.sendReply(`|uhtmlchange|rpg-${user.id}|<div class="infobox"><h2>No Moves Available</h2><p><strong>${targetPokemon.species}</strong> either has no Egg Moves or already knows all of them.</p><p><button name="send" value="/rpg items" class="button">Back to Items</button></p></div>`);
@@ -1129,13 +1157,16 @@ export const commands: ChatCommands = {
 				if (!playerPokemon) return this.errorReply("Active pokemon not found.");
 
 				const moveId = toID(target);
-				if (!playerPokemon.moves.includes(moveId)) return this.errorReply("Invalid move.");
+				if (!playerPokemon.moves.some(m => m.id === moveId)) return this.errorReply("Invalid move.");
 
 				const messageLog: string[] = [];
 				const { wildPokemon } = battle;
+				
+				const playerRandomMove = playerPokemon.moves.find(m => m.id === moveId)!;
+				const wildRandomMove = wildPokemon.moves[Math.floor(Math.random() * wildPokemon.moves.length)];
 
-				const playerAction = { pokemon: playerPokemon, move: Dex.moves.get(moveId) };
-				const wildAction = { pokemon: wildPokemon, move: Dex.moves.get(wildPokemon.moves[Math.floor(Math.random() * wildPokemon.moves.length)]) };
+				const playerAction = { pokemon: playerPokemon, move: Dex.moves.get(playerRandomMove.id) };
+				const wildAction = { pokemon: wildPokemon, move: Dex.moves.get(wildRandomMove.id) };
 
 				let playerSpe = playerAction.pokemon.spe;
 				if (battle.playerStatus === 'par') playerSpe = Math.floor(playerSpe / 2);
@@ -1159,6 +1190,20 @@ export const commands: ChatCommands = {
 					const move = turn.move;
 					const attackerStatus = (attacker === playerPokemon) ? battle.playerStatus : battle.wildStatus;
 					
+					const moveObject = attacker.moves.find(m => m.id === move.id);
+					if (!moveObject || moveObject.pp <= 0) {
+						messageLog.push(`${attacker.species} tried to use ${move.name}, but it has no PP left!`);
+						continue;
+					}
+			
+					moveObject.pp--;
+			
+					const moveAccuracy = move.accuracy;
+					if (moveAccuracy !== true && (Math.random() * 100) > moveAccuracy) {
+						messageLog.push(`${attacker.species}'s ${move.name} missed!`);
+						continue;
+					}
+
 					if (attackerStatus === 'frz') {
 						if (Math.random() < 0.20) {
 							if (attacker === playerPokemon) battle.playerStatus = null; else battle.wildStatus = null;
@@ -1304,6 +1349,11 @@ export const commands: ChatCommands = {
 					activeBattles.delete(user.id);
 					const moneyGained = Math.floor(wildPokemon.level * 10);
 					player.money += moneyGained;
+					
+					playerPokemon.moves.forEach(move => {
+						move.pp = Dex.moves.get(move.id).pp || 5;
+					});
+
 					const { messages: expMessages } = gainExperience(player, playerPokemon, wildPokemon, room, user);
 					if (player.pendingMoveLearnQueue?.moveIds.length) {
 						return this.sendReply(`|uhtmlchange|rpg-${user.id}|${generateMoveLearnHTML(player)}`);
@@ -1339,8 +1389,8 @@ export const commands: ChatCommands = {
 				battle.turn++;
 				
 				const messageLog = [`Go, ${nextPokemon.species}!`];
-				const wildMoveId = battle.wildPokemon.moves[Math.floor(Math.random() * battle.wildPokemon.moves.length)];
-				const wildResult = calculateDamage(battle.wildPokemon, battle.activePokemon, wildMoveId, battle.wildStatStages, battle.playerStatStages, battle.wildStatus);
+				const wildMoveData = battle.wildPokemon.moves[Math.floor(Math.random() * battle.wildPokemon.moves.length)];
+				const wildResult = calculateDamage(battle.wildPokemon, battle.activePokemon, wildMoveData.id, battle.wildStatStages, battle.playerStatStages, battle.wildStatus);
 				battle.activePokemon.hp = Math.max(0, battle.activePokemon.hp - wildResult.damage);
 				messageLog.push(wildResult.message);
 				if (wildResult.damage > 0) messageLog.push(`${battle.activePokemon.species} took ${wildResult.damage} damage!`);
@@ -1406,8 +1456,8 @@ export const commands: ChatCommands = {
 				} else {
 					messageLog.push(shakeMessages[catchResult.shakes]);
 
-					const wildMoveId = battle.wildPokemon.moves[Math.floor(Math.random() * battle.wildPokemon.moves.length)];
-					const wildResult = calculateDamage(battle.wildPokemon, battle.activePokemon, wildMoveId, battle.wildStatStages, battle.playerStatStages, battle.wildStatus);
+					const wildMoveData = battle.wildPokemon.moves[Math.floor(Math.random() * battle.wildPokemon.moves.length)];
+					const wildResult = calculateDamage(battle.wildPokemon, battle.activePokemon, wildMoveData.id, battle.wildStatStages, battle.playerStatStages, battle.wildStatus);
 					battle.activePokemon.hp = Math.max(0, battle.activePokemon.hp - wildResult.damage);
 					messageLog.push(wildResult.message);
 					if (wildResult.damage > 0) {
