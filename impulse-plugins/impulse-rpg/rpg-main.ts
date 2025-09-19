@@ -276,7 +276,7 @@ function createPokemon(speciesId: string, level: number = 5): RPGPokemon {
 		const learnedMoves: string[] = [];
 		for (const lvl in manualLearnset) {
 			if (parseInt(lvl) <= level && parseInt(lvl) > 0) {
-				learnedMoves.push(...manualLearnset[lvl]);
+				learnedMoves.push(...manualLearnset[lvl].map(move => toID(move)));
 			}
 		}
 		if (learnedMoves.length > 0) availableMoves = learnedMoves.slice(-4);
