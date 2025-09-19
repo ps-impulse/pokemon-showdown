@@ -953,3 +953,5 @@ export const MANUAL_BASE_EXP: Record<string, number> = {
 	'terapagos': 90,
 	'pecharunt': 300
 };
+
+Impulse.MANUAL_BASE_EXP = MANUAL_BASE_EXP;
