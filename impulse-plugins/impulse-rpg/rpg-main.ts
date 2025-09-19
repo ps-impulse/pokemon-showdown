@@ -1,6 +1,6 @@
 // Pokemon RPG Plugin for Pokemon Showdown
 
-import { MANUAL_EVOLUTIONS } from './evolutions.ts';
+//import { MANUAL_EVOLUTIONS } from './evolutions.ts';
 import { MANUAL_LEARNSETS } from './learnsets.ts';
 import { MANUAL_BASE_EXP } from './base-exp.ts';
 import { MANUAL_EV_YIELDS } from './ev-yields.ts';
@@ -117,6 +117,7 @@ const MANUAL_LEARNSETS: Record<string, Record<number, string[]>> = {
 	'wartortle': { 1: ['tackle', 'tailwhip'], 4: ['bubble'], 7: ['watergun'], 13: ['bite'], 19: ['rapidspin'] },
 	'blastoise': { 1: ['tackle', 'tailwhip'], 4: ['bubble'], 7: ['watergun'], 13: ['bite'], 19: ['rapidspin'], 32: ['hydropump'] },
 };
+*/
 
 // Manual Evolution Database
 const MANUAL_EVOLUTIONS: Record<string, { evoLevel: number, evoTo: string }> = {
@@ -124,7 +125,7 @@ const MANUAL_EVOLUTIONS: Record<string, { evoLevel: number, evoTo: string }> = {
 	'charmander': { evoLevel: 16, evoTo: 'charmeleon' }, 'charmeleon': { evoLevel: 36, evoTo: 'charizard' },
 	'squirtle': { evoLevel: 16, evoTo: 'wartortle' }, 'wartortle': { evoLevel: 36, evoTo: 'blastoise' },
 };
-*/
+
 // Type Chart
 const TYPE_CHART: { [type: string]: { superEffective: string[], notVeryEffective: string[], noEffect: string[] } } = {
 	Normal: { superEffective: [], notVeryEffective: ['Rock', 'Steel'], noEffect: ['Ghost'] },
