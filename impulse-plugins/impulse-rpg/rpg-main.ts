@@ -97,27 +97,8 @@ const STARTER_POKEMON = {
 	grass: ['bulbasaur', 'chikorita', 'treecko', 'turtwig', 'snivy', 'chespin', 'rowlet', 'grookey', 'sprigatito'],
 };
 
-const MANUAL_BASE_EXP = Impulse.MANUAL_BASE_EXP;
-
-const MANUAL_CATCH_RATES = Impulse.MANUAL_CATCH_RATES;
-
-const MANUAL_EV_YIELDS = Impulse.MANUAL_EV_YIELDS;
-
-const MANUAL_LEARNSETS = Impulse.MANUAL_LEARNSETS;
-
-const MANUAL_EVOLUTIONS = Impulse.MANUAL_EVOLUTIONS;
-
-// Manual Databases (Commented out as per original file structure)
-/*
 const MANUAL_CATCH_RATES: Record<string, number> = {
-	'rattata': 255,
-	'pidgey': 255,
-	'caterpie': 255,
-	'weedle': 255,
-	'zubat': 255,
-	'geodude': 255,
-	'magikarp': 255,
-	'psyduck': 190,
+	'rattata': 255, 'pidgey': 255, 'caterpie': 255, 'weedle': 255, 'zubat': 255, 'geodude': 255, 'magikarp': 255, 'psyduck': 190,
 };
 
 const MANUAL_BASE_EXP: Record<string, number> = {
@@ -137,9 +118,9 @@ const MANUAL_EV_YIELDS: Record<string, Partial<Record<keyof Stats, number>>> = {
 };
 
 const MANUAL_LEARNSETS: Record<string, Record<number, string[]>> = {
-	'bulbasaur': { 1: ['tackle', 'growl'], 3: ['leechseed'], 7: ['vinewhip'], 13: ['razorleaf'] },
-	'ivysaur': { 1: ['tackle', 'growl'], 3: ['leechseed'], 7: ['vinewhip'], 13: ['razorleaf'], 20: ['sleeppowder', 'poisonpowder'] },
-	'venusaur': { 1: ['tackle', 'growl'], 3: ['leechseed'], 7: ['vinewhip'], 13: ['razorleaf'], 20: ['sleeppowder', 'poisonpowder'], 32: ['solarbeam'] },
+	'bulbasaur': { 1: ['tackle', 'growl'], 3: ['leechseed'], 7: ['vinewhip'], 13: ['razorleaf'], 20: ['sleeppowder', 'poisonpowder'] },
+	'ivysaur': { 1: ['tackle', 'growl'], 3: ['leechseed'], 7: ['vinewhip'], 13: ['razorleaf'] },
+	'venusaur': { 1: ['tackle', 'growl'], 3: ['leechseed'], 7: ['vinewhip'], 13: ['razorleaf'], 32: ['solarbeam'] },
 	'charmander': { 1: ['scratch', 'growl'], 7: ['ember'], 10: ['smokescreen'], 16: ['dragonrage'] },
 	'charmeleon': { 1: ['scratch', 'growl'], 7: ['ember'], 10: ['smokescreen'], 16: ['dragonrage'], 22: ['firespin'] },
 	'charizard': { 1: ['scratch', 'growl'], 7: ['ember'], 10: ['smokescreen'], 16: ['dragonrage'], 22: ['firespin'], 36: ['flamethrower'] },
@@ -153,7 +134,7 @@ const MANUAL_EVOLUTIONS: Record<string, { evoLevel: number, evoTo: string }> = {
 	'charmander': { evoLevel: 16, evoTo: 'charmeleon' }, 'charmeleon': { evoLevel: 36, evoTo: 'charizard' },
 	'squirtle': { evoLevel: 16, evoTo: 'wartortle' }, 'wartortle': { evoLevel: 36, evoTo: 'blastoise' },
 };
-*/
+
 // Type Chart
 const TYPE_CHART: { [type: string]: { superEffective: string[], notVeryEffective: string[], noEffect: string[] } } = {
 	Normal: { superEffective: [], notVeryEffective: ['Rock', 'Steel'], noEffect: ['Ghost'] },
@@ -402,36 +383,25 @@ function generateInventoryHTML(player: PlayerData, category?: string): string {
 }
 
 function calculateCatchChance(wildPokemon: RPGPokemon, ballType: string, wildStatus: Status | null): number {
-    // This function implements the catch rate formula from Generation V onwards.
-    // Formula: a = ( (3 * HP_max - 2 * HP_current) * Rate * Ball * Status ) / (3 * HP_max)
-    // Then, the probability is P = a / 255
+	const speciesId = toID(wildPokemon.species);
+	const catchRate = MANUAL_CATCH_RATES[speciesId] || 45;
 
-    // @ts-ignore
-    const speciesId = toID(wildPokemon.species);
-    const catchRate = MANUAL_CATCH_RATES[speciesId] || 45; // Default to a low rate if not in manual DB
+	let ballMultiplier = 1;
+	if (ballType === 'greatball') ballMultiplier = 1.5;
+	if (ballType === 'ultraball') ballMultiplier = 2;
+	
+	let statusMultiplier = 1;
+	if (wildStatus === 'slp' || wildStatus === 'frz') {
+		statusMultiplier = 2.5;
+	} else if (wildStatus === 'par' || wildStatus === 'psn' || wildStatus === 'brn') {
+		statusMultiplier = 1.5;
+	}
 
-    let ballMultiplier = 1;
-    if (ballType === 'greatball') ballMultiplier = 1.5;
-    if (ballType === 'ultraball') ballMultiplier = 2;
-    
-    // Set status multiplier based on the wild Pokémon's status
-    let statusMultiplier = 1;
-    if (wildStatus === 'slp' || wildStatus === 'frz') {
-        statusMultiplier = 2.5;
-    } else if (wildStatus === 'par' || wildStatus === 'psn' || wildStatus === 'brn') {
-        statusMultiplier = 1.5;
-    }
-
-    const { maxHp, hp } = wildPokemon;
-
-    const a = Math.floor(
-        (((3 * maxHp - 2 * hp) * catchRate * ballMultiplier) / (3 * maxHp)) * statusMultiplier
-    );
-
-    // The probability is a/255. We compare a random number from 0-1 against this.
-    const probability = Math.max(0, a / 255);
-    
-    return probability;
+	const { maxHp, hp } = wildPokemon;
+	const a = Math.floor(
+		(((3 * maxHp - 2 * hp) * catchRate * ballMultiplier) / (3 * maxHp)) * statusMultiplier
+	);
+	return Math.max(0, a / 255);
 }
 
 function generatePCHTML(player: PlayerData): string {
@@ -483,7 +453,6 @@ function calculateDamage(
 	const defenseStat = Math.floor(defenseStatRaw * getStatMultiplier(defenseStage));
 	
 	let finalAttackStat = attackStat;
-	// Apply Burn modifier for physical moves
 	if (attackerStatus === 'brn' && move.category === 'Physical') {
 		finalAttackStat = Math.floor(finalAttackStat / 2);
 	}
@@ -528,7 +497,6 @@ function levelUp(pokemon: RPGPokemon): string[] {
 
 function handleLearningMoves(player: PlayerData, pokemon: RPGPokemon): { messages: string[] } {
 	const messages: string[] = [];
-	// @ts-ignore
 	const speciesId = toID(pokemon.species);
 	const manualLearnset = MANUAL_LEARNSETS[speciesId];
 	if (!manualLearnset) return { messages };
@@ -551,7 +519,6 @@ function handleLearningMoves(player: PlayerData, pokemon: RPGPokemon): { message
 }
 
 function gainEffortValues(pokemon: RPGPokemon, defeatedPokemon: RPGPokemon) {
-    // @ts-ignore
     const defeatedSpeciesId = toID(defeatedPokemon.species);
     const evYield = MANUAL_EV_YIELDS[defeatedSpeciesId];
     if (!evYield) return;
@@ -579,7 +546,6 @@ function gainEffortValues(pokemon: RPGPokemon, defeatedPokemon: RPGPokemon) {
 }
 
 function gainExperience(player: PlayerData, pokemon: RPGPokemon, defeatedPokemon: RPGPokemon, room: ChatRoom, user: User): { messages: string[], leveledUp: boolean } {
-	// @ts-ignore
 	const defeatedSpeciesId = toID(defeatedPokemon.species);
 	const baseExp = MANUAL_BASE_EXP[defeatedSpeciesId];
 	if (!baseExp) return { messages: ['No experience was gained.'], leveledUp: false };
@@ -604,7 +570,6 @@ function gainExperience(player: PlayerData, pokemon: RPGPokemon, defeatedPokemon
 }
 
 function checkEvolution(player: PlayerData, pokemon: RPGPokemon, room: ChatRoom, user: User): string | null {
-	// @ts-ignore
 	const speciesId = toID(pokemon.species);
 	const evoData = MANUAL_EVOLUTIONS[speciesId];
 	if (!evoData || pokemon.level < evoData.evoLevel) return null;
@@ -697,7 +662,7 @@ export const commands: ChatCommands = {
 			if (activeBattles.has(user.id)) {
 				return this.errorReply("You cannot do this while in a battle.");
 			}
-			const starterId = target.trim().toLowerCase();
+			const starterId = toID(target);
 			const player = getPlayerData(user.id);
 			if (player.party.length > 0) {
 				return this.errorReply("You already have a starter Pokemon!");
@@ -748,12 +713,12 @@ export const commands: ChatCommands = {
 			}
 			const newMoveId = queue.moveIds[0];
 			const newMoveName = Dex.moves.get(newMoveId).name;
-			const move_to_replace = target.trim();
+			const moveToReplace = toID(target);
 			let message = "";
-			if (move_to_replace === 'skip') {
+			if (moveToReplace === 'skip') {
 				message = `<strong>${pokemon.species}</strong> did not learn <strong>${newMoveName}</strong>.`;
 			} else {
-				const moveIndex = pokemon.moves.findIndex(m => m === move_to_replace);
+				const moveIndex = pokemon.moves.findIndex(m => m === moveToReplace);
 				if (moveIndex === -1) {
 					return this.errorReply("That move is not known by your Pokemon.");
 				}
@@ -763,11 +728,12 @@ export const commands: ChatCommands = {
 			}
 			queue.moveIds.shift();
 			if (queue.moveIds.length > 0) {
-				return this.sendReply(`|uhtmlchange|rpg-${user.id}|${generateMoveLearnHTML(player)}`);
+				this.sendReply(`|uhtmlchange|rpg-${user.id}|${generateMoveLearnHTML(player)}`);
+			} else {
+				delete player.pendingMoveLearnQueue;
+				const resultHTML = `<div class="infobox"><h2>Move Learning Result</h2><p>${message}</p>${generatePokemonInfoHTML(pokemon)}<p><button name="send" value="/rpg menu" class="button">Continue</button></p></div>`;
+				this.sendReply(`|uhtmlchange|rpg-${user.id}|${resultHTML}`);
 			}
-			delete player.pendingMoveLearnQueue;
-			const resultHTML = `<div class="infobox"><h2>Move Learning Result</h2><p>${message}</p>${generatePokemonInfoHTML(pokemon)}<p><button name="send" value="/rpg menu" class="button">Continue</button></p></div>`;
-			this.sendReply(`|uhtmlchange|rpg-${user.id}|${resultHTML}`);
 		},
 
 		learneggmove(target, room, user) {
@@ -780,7 +746,6 @@ export const commands: ChatCommands = {
 			if (!pokemon) {
 				return this.errorReply("Pokemon not found in your party.");
 			}
-			// @ts-ignore
 			const speciesId = toID(pokemon.species);
 			const eggMoves = MANUAL_LEARNSETS[speciesId]?.[0] || [];
 			if (!eggMoves.includes(newMoveId)) {
@@ -856,7 +821,7 @@ export const commands: ChatCommands = {
 				return this.errorReply("You cannot access your bag in battle.");
 			}
 			const player = getPlayerData(user.id);
-			const category = target.trim().toLowerCase();
+			const category = toID(target);
 			const validCategories = ['pokeball', 'potion', 'berry', 'tm', 'key'];
 			const filterCategory = validCategories.includes(category) ? category : undefined;
 			this.sendReply(`|uhtmlchange|rpg-${user.id}|${generateInventoryHTML(player, filterCategory)}`);
@@ -866,15 +831,11 @@ export const commands: ChatCommands = {
 			if (activeBattles.has(user.id)) {
 				return this.errorReply("You cannot use items from the menu during a battle.");
 			}
-			const [itemId, pokemonId] = target.split(' ').map(arg => arg.trim().toLowerCase());
+			const [itemId, pokemonId] = target.split(' ').map(arg => toID(arg));
 			const player = getPlayerData(user.id);
 
-			if (!itemId) {
-				return this.errorReply("Please specify an item to use.");
-			}
-			if (!player.inventory.has(itemId)) {
-				return this.errorReply("You don't have that item.");
-			}
+			if (!itemId) return this.errorReply("Please specify an item to use.");
+			if (!player.inventory.has(itemId)) return this.errorReply("You don't have that item.");
 
 			const item = player.inventory.get(itemId)!;
 			if (item.category === 'potion') {
@@ -915,7 +876,6 @@ export const commands: ChatCommands = {
 				}
 				const targetPokemon = player.party.find(p => p.id === pokemonId);
 				if (!targetPokemon) return this.errorReply("Pokemon not found in your party.");
-				// @ts-ignore
 				const speciesId = toID(targetPokemon.species);
 				const allEggMoves = MANUAL_LEARNSETS[speciesId]?.[0] || [];
 				const learnableEggMoves = allEggMoves.filter(moveId => !targetPokemon.moves.includes(moveId));
@@ -1060,13 +1020,12 @@ export const commands: ChatCommands = {
 			'move'(target, room, user) {
 				const battle = activeBattles.get(user.id);
 				if (!battle) return this.errorReply("You are not in a battle.");
-				const moveId = target.trim();
+				const moveId = toID(target);
 				if (!battle.activePokemon.moves.includes(moveId)) return this.errorReply("Invalid move.");
 
 				const messageLog: string[] = [];
 				const { activePokemon: playerPokemon, wildPokemon } = battle;
 
-				// 1. Determine Turn Order
 				const playerAction = { pokemon: playerPokemon, move: Dex.moves.get(moveId) };
 				const wildAction = { pokemon: wildPokemon, move: Dex.moves.get(wildPokemon.moves[Math.floor(Math.random() * wildPokemon.moves.length)]) };
 
@@ -1084,7 +1043,6 @@ export const commands: ChatCommands = {
 					turnOrder = (playerSpe >= wildSpe) ? [playerAction, wildAction] : [wildAction, playerAction];
 				}
 
-				// 2. Process turns sequentially
 				for (const turn of turnOrder) {
 					if (turn.pokemon.hp <= 0) continue;
 
@@ -1093,7 +1051,6 @@ export const commands: ChatCommands = {
 					const move = turn.move;
 					const attackerStatus = (attacker === playerPokemon) ? battle.playerStatus : battle.wildStatus;
 					
-					// Pre-turn status checks
 					if (attackerStatus === 'frz') {
 						if (Math.random() < 0.20) {
 							if (attacker === playerPokemon) battle.playerStatus = null; else battle.wildStatus = null;
@@ -1126,9 +1083,12 @@ export const commands: ChatCommands = {
 					let attackResult = { damage: 0, message: "" };
 
 					if (move.category === 'Status') {
-						let targetStages = move.target === 'self' ? attackerStages : defenderStages;
+						messageLog.push(`${attacker.species} used ${move.name}!`);
+						const defenderCurrentStatus = (defender === playerPokemon) ? battle.playerStatus : battle.wildStatus;
 						let changed = false;
+
 						if (move.boosts) {
+							let targetStages = attackerStages;
 							for (const stat in move.boosts) {
 								const statName = stat as keyof Omit<Stats, 'maxHp'>;
 								const boostValue = move.boosts[statName]!;
@@ -1137,8 +1097,9 @@ export const commands: ChatCommands = {
 									changed = true;
 								}
 							}
-							messageLog.push(changed ? `${attacker.species} used ${move.name}! Its stats were raised!` : `${attacker.species} used ${move.name}, but its stats won't go any higher!`);
+							if (changed) messageLog.push(`Its stats were raised!`); else messageLog.push(`But its stats won't go any higher!`);
 						} else if (move.secondary?.boosts) {
+							let targetStages = defenderStages;
 							for (const stat in move.secondary.boosts) {
 								const statName = stat as keyof Omit<Stats, 'maxHp'>;
 								const boostValue = move.secondary.boosts[statName]!;
@@ -1147,9 +1108,33 @@ export const commands: ChatCommands = {
 									changed = true;
 								}
 							}
-							messageLog.push(changed ? `${attacker.species} used ${move.name}! ${defender.species}'s stats were lowered!` : `${attacker.species} used ${move.name}, but its stats won't go any lower!`);
+							if (changed) messageLog.push(`${defender.species}'s stats were lowered!`); else messageLog.push(`But its stats won't go any lower!`);
+						} else if (move.status) {
+							if (defenderCurrentStatus) {
+								messageLog.push(`But it failed!`);
+							} else {
+								const status = move.status as Status;
+								if (status === 'slp') {
+									const sleepTurns = 1 + Math.floor(Math.random() * 3);
+									if (defender === playerPokemon) {
+										battle.playerStatus = 'slp';
+										battle.playerSleepCounter = sleepTurns;
+									} else {
+										battle.wildStatus = 'slp';
+										battle.wildSleepCounter = sleepTurns;
+									}
+									messageLog.push(`${defender.species} fell asleep!`);
+								} else {
+									if (defender === playerPokemon) {
+										battle.playerStatus = status;
+									} else {
+										battle.wildStatus = status;
+									}
+									messageLog.push(`${defender.species} was afflicted with the ${status} status!`);
+								}
+							}
 						} else {
-							messageLog.push(`${attacker.species} used ${move.name}, but it had no effect!`);
+							messageLog.push(`But it had no effect!`);
 						}
 					} else {
 						attackResult = calculateDamage(attacker, defender, move.id, attackerStages, defenderStages, attackerStatus);
@@ -1188,7 +1173,6 @@ export const commands: ChatCommands = {
 					if (wildPokemon.hp === 0 || playerPokemon.hp === 0) break;
 				}
 
-				// 3. End of Turn Effects
 				if (wildPokemon.hp > 0 && playerPokemon.hp > 0) {
 					for (const turn of turnOrder) {
 						const pokemon = turn.pokemon;
@@ -1202,7 +1186,6 @@ export const commands: ChatCommands = {
 					}
 				}
 
-				// 4. Final Faint Checks
 				if (wildPokemon.hp === 0) {
 					activeBattles.delete(user.id);
 					const moneyGained = Math.floor(wildPokemon.level * 10);
@@ -1259,7 +1242,6 @@ export const commands: ChatCommands = {
 				}
 
 				removeItemFromInventory(player, ballType, 1);
-
 				const catchChance = calculateCatchChance(battle.wildPokemon, ballType, battle.wildStatus);
 
 				if (Math.random() < catchChance) {
