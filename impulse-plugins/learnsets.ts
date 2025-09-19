@@ -679,4 +679,4 @@ export const MANUAL_LEARNSETS: Record<string, Record<number, string[]>> = {
 	'pecharunt': { 0: ['defense-curl', 'mean-look', 'rollout'], 1: ['astonish', 'memento', 'poison-gas', 'smog'], 8: ['withdraw'], 16: ['destiny-bond'], 24: ['fake-tears'], 32: ['parting-shot'], 40: ['shadow-ball'], 48: ['malignant-chain'], 56: ['toxic'], 64: ['nasty-plot'], 72: ['recover'] }
 };
 
-	Imoulse.MANUAL_LEARNSETS = MANUAL_LEARNSETS;
+	Impulse.MANUAL_LEARNSETS = MANUAL_LEARNSETS;
