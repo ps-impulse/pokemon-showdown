@@ -76,6 +76,17 @@ const ITEMS_DATABASE: Record<string, Omit<InventoryItem, 'quantity'>> = {
 	'pokeball': { id: 'pokeball', name: 'Poke Ball', category: 'pokeball', description: 'A device for catching wild Pokemon. It has a 1x catch rate.' },
 	'greatball': { id: 'greatball', name: 'Great Ball', category: 'pokeball', description: 'A good, high-performance Poke Ball. It has a 1.5x catch rate.' },
 	'ultraball': { id: 'ultraball', name: 'Ultra Ball', category: 'pokeball', description: 'An ultra-high performance Poke Ball. It has a 2x catch rate.' },
+    'masterball': { id: 'masterball', name: 'Master Ball', category: 'pokeball', description: 'The best Poke Ball with the ultimate performance. It will catch any wild Pokemon without fail.' },
+    'levelball': { id: 'levelball', name: 'Level Ball', category: 'pokeball', description: 'A Poke Ball that works well on Pokemon of a lower level than your own.' },
+    'fastball': { id: 'fastball', name: 'Fast Ball', category: 'pokeball', description: 'A Poke Ball that works well on Pokemon that have a high Speed stat.' },
+    'timerball': { id: 'timerball', name: 'Timer Ball', category: 'pokeball', description: 'A Poke Ball that becomes more effective the more turns that have passed in battle.' },
+    'nestball': { id: 'nestball', name: 'Nest Ball', category: 'pokeball', description: 'A Poke Ball that works well on low-level Pokemon.' },
+    'netball': { id: 'netball', name: 'Net Ball', category: 'pokeball', description: 'A Poke Ball that works well on Bug- or Water-type Pokemon.' },
+    'quickball': { id: 'quickball', name: 'Quick Ball', category: 'pokeball', description: 'A Poke Ball that provides a high catch rate if used at the start of a wild encounter.' },
+    'dreamball': { id: 'dreamball', name: 'Dream Ball', category: 'pokeball', description: 'A Poke Ball that works well on sleeping Pokemon.' },
+    'premierball': { id: 'premierball', name: 'Premier Ball', category: 'pokeball', description: 'A somewhat rare Poke Ball that has been specially made to commemorate an event.' },
+    'luxuryball': { id: 'luxuryball', name: 'Luxury Ball', category: 'pokeball', description: 'A comfortable Poke Ball that makes a caught wild Pokemon quickly grow friendly.' },
+    'healball': { id: 'healball', name: 'Heal Ball', category: 'pokeball', description: 'A remedial Poke Ball that restores the HP of a Pokemon it catches and eliminates any status conditions.' },
 	'potion': { id: 'potion', name: 'Potion', category: 'potion', description: 'A spray-type medicine. It restores 20 HP to a Pokemon.' },
 	'superpotion': { id: 'superpotion', name: 'Super Potion', category: 'potion', description: 'A spray-type medicine. It restores 50 HP to a Pokemon.' },
 	'hyperpotion': { id: 'hyperpotion', name: 'Hyper Potion', category: 'potion', description: 'A spray-type medicine. It restores 200 HP to a Pokemon.' },
@@ -398,27 +409,78 @@ function generateInventoryHTML(player: PlayerData, category?: string): string {
 	return html;
 }
 
-function calculateCatchChance(wildPokemon: RPGPokemon, ballType: string, wildStatus: Status | null): number {
-	const speciesId = toID(wildPokemon.species);
-	const catchRate = MANUAL_CATCH_RATES[speciesId] || 45;
+function getBallBonus(ballId: string, battle: BattleState): number {
+    const { wildPokemon, activePokemon, turn, wildStatus } = battle;
+    const wildSpecies = Dex.species.get(wildPokemon.species);
 
-	let ballMultiplier = 1;
-	if (ballType === 'greatball') ballMultiplier = 1.5;
-	if (ballType === 'ultraball') ballMultiplier = 2;
-	
-	let statusMultiplier = 1;
-	if (wildStatus === 'slp' || wildStatus === 'frz') {
-		statusMultiplier = 2.5;
-	} else if (wildStatus === 'par' || wildStatus === 'psn' || wildStatus === 'brn') {
-		statusMultiplier = 1.5;
-	}
-
-	const { maxHp, hp } = wildPokemon;
-	const a = Math.floor(
-		(((3 * maxHp - 2 * hp) * catchRate * ballMultiplier) / (3 * maxHp)) * statusMultiplier
-	);
-	return Math.max(0, a / 255);
+    switch (ballId) {
+        case 'greatball': return 1.5;
+        case 'ultraball': return 2;
+        case 'masterball': return 255;
+        case 'fastball':
+            return wildSpecies.baseStats.spe >= 100 ? 4 : 1;
+        case 'levelball':
+            if (activePokemon.level >= wildPokemon.level * 4) return 8;
+            if (activePokemon.level >= wildPokemon.level * 2) return 4;
+            if (activePokemon.level > wildPokemon.level) return 2;
+            return 1;
+        case 'nestball':
+            if (wildPokemon.level <= 29) {
+                return Math.max(1, (41 - wildPokemon.level) / 10);
+            }
+            return 1;
+        case 'netball':
+            return wildSpecies.types.includes('Bug') || wildSpecies.types.includes('Water') ? 3.5 : 1;
+        case 'quickball':
+            return turn === 0 ? 5 : 1;
+        case 'timerball':
+            return Math.min(4, 1 + turn * (1229 / 4096));
+        case 'dreamball':
+            return wildStatus === 'slp' ? 4 : 1;
+        default:
+            return 1; // pokeball, premierball, luxuryball, healball, etc.
+    }
 }
+
+function performCatchAttempt(battle: BattleState, ballId: string): { success: boolean, shakes: number } {
+    const { wildPokemon, wildStatus } = battle;
+    const speciesId = toID(wildPokemon.species);
+    const catchRate = MANUAL_CATCH_RATES[speciesId] || 45;
+
+    const ballBonus = getBallBonus(ballId, battle);
+    if (ballBonus === 255) return { success: true, shakes: 4 }; // Master Ball
+
+    let statusBonus = 1;
+    if (wildStatus === 'slp' || wildStatus === 'frz') {
+        statusBonus = 2.5;
+    } else if (wildStatus === 'par' || wildStatus === 'psn' || wildStatus === 'brn') {
+        statusBonus = 1.5;
+    }
+
+    const { maxHp, hp } = wildPokemon;
+	// In the games, there are other modifiers like for Dark Grass, O-Powers, etc. We will omit these for simplicity.
+    const modifiedCatchRate = catchRate;
+
+    const a = Math.floor(
+        (((3 * maxHp - 2 * hp) * modifiedCatchRate * ballBonus) / (3 * maxHp)) * statusBonus
+    );
+
+    if (a >= 255) return { success: true, shakes: 4 }; // Automatic catch
+
+    const b = Math.floor(65536 / Math.pow(255 / a, 0.1875));
+
+    let shakes = 0;
+    for (let i = 0; i < 4; i++) {
+        const rand = Math.floor(Math.random() * 65536);
+        if (rand >= b) {
+            return { success: false, shakes: shakes };
+        }
+        shakes++;
+    }
+
+    return { success: true, shakes: 4 };
+}
+
 
 function generatePCHTML(player: PlayerData): string {
 	let html = `<div class="infobox"><h2>Pokemon PC System</h2><p>Welcome to Bill's PC!</p><p><strong>Pokemon in PC:</strong> ${player.pc.size}</p>`;
@@ -612,7 +674,28 @@ function checkEvolution(player: PlayerData, pokemon: RPGPokemon, room: ChatRoom,
 }
 
 function generateBattleHTML(battle: BattleState, messageLog: string[] = []): string {
-	return `<div class="infobox"><h2>Wild Battle!</h2><div style="display: flex; justify-content: space-around;"><div><h3>Your Pokemon</h3>${generatePokemonInfoHTML(battle.activePokemon, false, battle.playerStatus, battle.playerStatStages)}</div><div><h3>Wild Pokemon</h3>${generatePokemonInfoHTML(battle.wildPokemon, false, battle.wildStatus, battle.wildStatStages)}</div></div><hr /><div style="padding: 5px; margin: 10px 0; border: 1px solid #666; background: #f0f0f0; min-height: 50px;">${messageLog.join('<br>')}</div><p>What will ${battle.activePokemon.species} do?</p><div style="display: grid; grid-template-columns: repeat(2, 1fr); gap: 5px;">${battle.activePokemon.moves.map(moveId => `<button name="send" value="/rpg battleaction move ${moveId}" class="button">${Dex.moves.get(moveId).name}</button>`).join('')}</div><p style="margin-top: 15px;"><button name="send" value="/rpg battleaction catchmenu ${battle.wildPokemon.species}" class="button">⚽ Catch</button><button name="send" value="/rpg battleaction run" class="button">🏃 Run</button></p></div>`;
+	return `<div class="infobox"><h2>Wild Battle!</h2><div style="display: flex; justify-content: space-around;"><div><h3>Your Pokemon</h3>${generatePokemonInfoHTML(battle.activePokemon, false, battle.playerStatus, battle.playerStatStages)}</div><div><h3>Wild Pokemon</h3>${generatePokemonInfoHTML(battle.wildPokemon, false, battle.wildStatus, battle.wildStatStages)}</div></div><hr /><div style="padding: 5px; margin: 10px 0; border: 1px solid #666; background: #f0f0f0; min-height: 50px;">${messageLog.join('<br>')}</div><p>What will ${battle.activePokemon.species} do?</p><div style="display: grid; grid-template-columns: repeat(2, 1fr); gap: 5px;">${battle.activePokemon.moves.map(moveId => `<button name="send" value="/rpg battleaction move ${moveId}" class="button">${Dex.moves.get(moveId).name}</button>`).join('')}</div><p style="margin-top: 15px;"><button name="send" value="/rpg battleaction catchmenu" class="button">⚽ Catch</button><button name="send" value="/rpg battleaction run" class="button">🏃 Run</button></p></div>`;
+}
+
+function generateCatchMenuHTML(player: PlayerData, battle: BattleState): string {
+    let html = `<div class="infobox"><h2>Select a Poke Ball</h2>`;
+    const pokeBalls = [];
+    for (const [itemId, item] of player.inventory) {
+        if (item.category === 'pokeball' && item.quantity > 0) {
+            pokeBalls.push(item);
+        }
+    }
+    if (pokeBalls.length === 0) {
+        html += `<p>You have no Poke Balls!</p>`;
+    } else {
+        html += `<div style="display: grid; grid-template-columns: repeat(3, 1fr); gap: 10px;">`;
+        for (const ball of pokeBalls) {
+            html += `<div style="text-align: center; padding: 8px; border: 1px solid #ccc; border-radius: 5px;"><strong>${ball.name}</strong><br><small>x${ball.quantity}</small><br><button name="send" value="/rpg battleaction catch ${ball.id}" class="button" style="font-size: 12px; margin-top: 5px;">Use</button></div>`;
+        }
+        html += `</div>`;
+    }
+    html += `<hr /><p><button name="send" value="/rpg battleaction back" class="button">Back to Battle</button></p></div>`;
+    return html;
 }
 
 function generateVictoryHTML(defeatedPokemon: RPGPokemon, expMessages: string[], moneyGained: number): string {
@@ -955,7 +1038,7 @@ export const commands: ChatCommands = {
 				return this.errorReply("You cannot shop during a battle.");
 			}
 			const player = getPlayerData(user.id);
-			const shopHTML = `<div class="infobox"><h2>Poke Mart</h2><p><strong>Your Money:</strong> ₽${player.money}</p><h3>Items for Sale:</h3><div style="display: grid; grid-template-columns: repeat(2, 1fr); gap: 10px;"><div style="border: 1px solid #ccc; padding: 8px; border-radius: 5px;"><strong>Poke Ball</strong> - ₽200<br><small>A device for catching wild Pokemon</small><br><button name="send" value="/rpg buy pokeball 1" class="button" style="font-size: 12px; margin-top: 5px;">Buy 1</button><button name="send" value="/rpg buy pokeball 5" class="button" style="font-size: 12px;">Buy 5</button></div><div style="border: 1px solid #ccc; padding: 8px; border-radius: 5px;"><strong>Potion</strong> - ₽300<br><small>Restores 20 HP to a Pokemon</small><br><button name="send" value="/rpg buy potion 1" class="button" style="font-size: 12px; margin-top: 5px;">Buy 1</button><button name="send" value="/rpg buy potion 5" class="button" style="font-size: 12px;">Buy 5</button></div><div style="border: 1px solid #ccc; padding: 8px; border-radius: 5px;"><strong>Egg Move Tutor</strong> - ₽3000<br><small>Teaches a Pokemon an Egg Move</small><br><button name="send" value="/rpg buy eggmovetutor 1" class="button" style="font-size: 12px; margin-top: 5px;">Buy 1</button></div></div><p style="margin-top: 15px;"><button name="send" value="/rpg menu" class="button">Back to Menu</button></p></div>`;
+			const shopHTML = `<div class="infobox"><h2>Poke Mart</h2><p><strong>Your Money:</strong> ₽${player.money}</p><h3>Items for Sale:</h3><div style="display: grid; grid-template-columns: repeat(2, 1fr); gap: 10px;"><div style="border: 1px solid #ccc; padding: 8px; border-radius: 5px;"><strong>Poke Ball</strong> - ₽200<br><small>A device for catching wild Pokemon</small><br><button name="send" value="/rpg buy pokeball 1" class="button" style="font-size: 12px; margin-top: 5px;">Buy 1</button><button name="send" value="/rpg buy pokeball 5" class="button" style="font-size: 12px;">Buy 5</button></div><div style="border: 1px solid #ccc; padding: 8px; border-radius: 5px;"><strong>Great Ball</strong> - ₽600<br><small>A ball with a 1.5x catch rate.</small><br><button name="send" value="/rpg buy greatball 1" class="button" style="font-size: 12px; margin-top: 5px;">Buy 1</button></div><div style="border: 1px solid #ccc; padding: 8px; border-radius: 5px;"><strong>Ultra Ball</strong> - ₽800<br><small>A ball with a 2x catch rate.</small><br><button name="send" value="/rpg buy ultraball 1" class="button" style="font-size: 12px; margin-top: 5px;">Buy 1</button></div><div style="border: 1px solid #ccc; padding: 8px; border-radius: 5px;"><strong>Potion</strong> - ₽300<br><small>Restores 20 HP to a Pokemon</small><br><button name="send" value="/rpg buy potion 1" class="button" style="font-size: 12px; margin-top: 5px;">Buy 1</button><button name="send" value="/rpg buy potion 5" class="button" style="font-size: 12px;">Buy 5</button></div><div style="border: 1px solid #ccc; padding: 8px; border-radius: 5px;"><strong>Quick Ball</strong> - ₽1000<br><small>5x catch rate on turn 1.</small><br><button name="send" value="/rpg buy quickball 1" class="button" style="font-size: 12px; margin-top: 5px;">Buy 1</button></div><div style="border: 1px solid #ccc; padding: 8px; border-radius: 5px;"><strong>Timer Ball</strong> - ₽1000<br><small>Catch rate increases each turn.</small><br><button name="send" value="/rpg buy timerball 1" class="button" style="font-size: 12px; margin-top: 5px;">Buy 1</button></div><div style="border: 1px solid #ccc; padding: 8px; border-radius: 5px;"><strong>Egg Move Tutor</strong> - ₽3000<br><small>Teaches a Pokemon an Egg Move</small><br><button name="send" value="/rpg buy eggmovetutor 1" class="button" style="font-size: 12px; margin-top: 5px;">Buy 1</button></div></div><p style="margin-top: 15px;"><button name="send" value="/rpg menu" class="button">Back to Menu</button></p></div>`;
 			this.sendReply(`|uhtmlchange|rpg-${user.id}|${shopHTML}`);
 		},
 
@@ -969,7 +1052,11 @@ export const commands: ChatCommands = {
 			if (!itemId || !ITEMS_DATABASE[itemId]) {
 				return this.errorReply("Invalid item specified.");
 			}
-			const prices: Record<string, number> = { 'pokeball': 200, 'greatball': 600, 'ultraball': 1200, 'potion': 300, 'superpotion': 700, 'hyperpotion': 1200, 'eggmovetutor': 3000 };
+			const prices: Record<string, number> = {
+				'pokeball': 200, 'greatball': 600, 'ultraball': 800, 'potion': 300, 'superpotion': 700, 'hyperpotion': 1200, 'eggmovetutor': 3000,
+				'levelball': 1000, 'fastball': 1000, 'timerball': 1000, 'nestball': 1000, 'netball': 1000, 'quickball': 1000, 'dreamball': 1000,
+				'premierball': 200, 'luxuryball': 1000, 'healball': 300,
+			};
 			const itemPrice = prices[itemId];
 			if (!itemPrice) {
 				return this.errorReply("This item is not for sale.");
@@ -983,9 +1070,6 @@ export const commands: ChatCommands = {
 			const item = ITEMS_DATABASE[itemId];
 			this.sendReply(`|uhtmlchange|rpg-${user.id}|<div class="infobox"><h2>Purchase Complete!</h2><p>You bought <strong>${quantity}x ${item.name}</strong> for ₽${totalCost}!</p><p><strong>Money remaining:</strong> ₽${player.money}</p><p><button name="send" value="/rpg shop" class="button">Continue Shopping</button><button name="send" value="/rpg items" class="button">View Inventory</button></p></div>`);
 		},
-
-		catch: 'battleaction',
-		catchmenu: 'battleaction',
 
 		pokedex(target, room, user) {
 			if (activeBattles.has(user.id)) {
@@ -1009,10 +1093,10 @@ export const commands: ChatCommands = {
 			try {
 				const wildPokemon = createPokemon(wildSpeciesId, wildLevel);
 				const initialStages = { atk: 0, def: 0, spa: 0, spd: 0, spe: 0 };
-				activeBattles.set(user.id, { 
-					playerId: user.id, 
-					wildPokemon, 
-					activePokemon: firstPokemon, 
+				activeBattles.set(user.id, {
+					playerId: user.id,
+					wildPokemon,
+					activePokemon: firstPokemon,
 					turn: 0,
 					playerStatStages: { ...initialStages },
 					wildStatStages: { ...initialStages },
@@ -1020,8 +1104,6 @@ export const commands: ChatCommands = {
 					wildStatus: null,
 					playerSleepCounter: 0,
 					wildSleepCounter: 0,
-					playerToxicCounter: 0,
-					wildToxicCounter: 0,
 				});
 				this.sendReply(`|uhtml|rpg-${user.id}|${generateBattleHTML(activeBattles.get(user.id)!, [`A wild ${wildPokemon.species} appeared!`])}`);
 			} catch (error) {
@@ -1040,7 +1122,8 @@ export const commands: ChatCommands = {
 			'move'(target, room, user) {
 				const battle = activeBattles.get(user.id);
 				if (!battle) return this.errorReply("You are not in a battle.");
-				
+				battle.turn++;
+
 				const player = getPlayerData(battle.playerId);
 				const playerPokemon = player.party.find(p => p.id === battle.activePokemon.id);
 				if (!playerPokemon) return this.errorReply("Active pokemon not found.");
@@ -1253,6 +1336,7 @@ export const commands: ChatCommands = {
 				
 				battle.activePokemon = nextPokemon;
 				battle.playerStatStages = { atk: 0, def: 0, spa: 0, spd: 0, spe: 0 };
+				battle.turn++;
 				
 				const messageLog = [`Go, ${nextPokemon.species}!`];
 				const wildMoveId = battle.wildPokemon.moves[Math.floor(Math.random() * battle.wildPokemon.moves.length)];
@@ -1262,35 +1346,66 @@ export const commands: ChatCommands = {
 				if (wildResult.damage > 0) messageLog.push(`${battle.activePokemon.species} took ${wildResult.damage} damage!`);
 				this.sendReply(`|uhtmlchange|rpg-${user.id}|${generateBattleHTML(battle, messageLog)}`);
 			},
+			'catchmenu'(target, room, user) {
+                const battle = activeBattles.get(user.id);
+                if (!battle) return this.errorReply("You are not in a battle.");
+                const player = getPlayerData(battle.playerId);
+                this.sendReply(`|uhtmlchange|rpg-${user.id}|${generateCatchMenuHTML(player, battle)}`);
+            },
 			'catch'(target, room, user) {
 				const battle = activeBattles.get(user.id);
 				if (!battle) return this.errorReply("You are not in a battle.");
+				battle.turn++;
+
 				const player = getPlayerData(battle.playerId);
+				const ballId = toID(target);
+				const ballItem = player.inventory.get(ballId);
 
-				const [, ballType = 'pokeball'] = target.split(' ');
-
-				if (!player.inventory.has(ballType)) {
-					return this.errorReply(`You don't have any ${ITEMS_DATABASE[ballType]?.name || 'of that item'}!`);
+				if (!ballItem || ballItem.category !== 'pokeball' || ballItem.quantity < 1) {
+					return this.errorReply(`You don't have any ${ITEMS_DATABASE[ballId]?.name || 'of that item'}!`);
 				}
 				if (player.party.length >= 6 && player.pc.size >= 100) {
 					return this.errorReply("Your party and PC are full!");
 				}
 
-				removeItemFromInventory(player, ballType, 1);
-				const catchChance = calculateCatchChance(battle.wildPokemon, ballType, battle.wildStatus);
+				removeItemFromInventory(player, ballId, 1);
+				const messageLog: string[] = [];
+				messageLog.push(`${player.name} used a ${ballItem.name}!`);
 
-				if (Math.random() < catchChance) {
+				const catchResult = performCatchAttempt(battle, ballId);
+				const shakeMessages = [
+					"Oh no! The Pokemon broke free!",
+					"Aww! It appeared to be caught!",
+					"Aargh! Almost had it!",
+					"Gah! It was so close, too!",
+				];
+				
+				for (let i = 1; i <= catchResult.shakes; i++) {
+                    if (i < 4) {
+                        messageLog.push("...The ball shook...");
+                    }
+                }
+
+				if (catchResult.success) {
 					activeBattles.delete(user.id);
 					const caughtPokemon = battle.wildPokemon;
+                    if (ballId === 'healball') {
+                        caughtPokemon.hp = caughtPokemon.maxHp;
+                    }
 					const location = player.party.length < 6 ? "your party" : "PC";
 					if (player.party.length < 6) {
 						player.party.push(caughtPokemon);
 					} else {
 						storePokemonInPC(player, caughtPokemon);
 					}
-					this.sendReply(`|uhtmlchange|rpg-${user.id}|<div class="infobox"><h2>Gotcha!</h2><p><strong>${caughtPokemon.species}</strong> was caught!</p>${generatePokemonInfoHTML(caughtPokemon)}<p>${caughtPokemon.species} has been sent to ${location}.</p><p><button name="send" value="/rpg wildpokemon" class="button">Find Another</button><button name="send" value="/rpg menu" class="button">Back to Menu</button></p></div>`);
+
+					let successMessage = `<h2>Gotcha!</h2><p><strong>${caughtPokemon.species}</strong> was caught!</p>`;
+                    if (ballId === 'healball') successMessage += `<p>${caughtPokemon.species} was fully healed!</p>`;
+
+					this.sendReply(`|uhtmlchange|rpg-${user.id}|<div class="infobox">${successMessage}${generatePokemonInfoHTML(caughtPokemon)}<p>${caughtPokemon.species} has been sent to ${location}.</p><p><button name="send" value="/rpg wildpokemon" class="button">Find Another</button><button name="send" value="/rpg menu" class="button">Back to Menu</button></p></div>`);
 				} else {
-					const messageLog = [`Oh no! The wild ${battle.wildPokemon.species} broke free!`];
+					messageLog.push(shakeMessages[catchResult.shakes]);
+
 					const wildMoveId = battle.wildPokemon.moves[Math.floor(Math.random() * battle.wildPokemon.moves.length)];
 					const wildResult = calculateDamage(battle.wildPokemon, battle.activePokemon, wildMoveId, battle.wildStatStages, battle.playerStatStages, battle.wildStatus);
 					battle.activePokemon.hp = Math.max(0, battle.activePokemon.hp - wildResult.damage);
@@ -1325,7 +1440,7 @@ export const commands: ChatCommands = {
 			},
 			'': 'help',
 			help() {
-				this.sendReply("Battle commands: /rpg battleaction [move|switch|catch|run]");
+				this.sendReply("Battle commands: /rpg battleaction [move|switch|catchmenu|run]");
 			}
 		},
 
