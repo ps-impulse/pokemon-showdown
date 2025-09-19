@@ -1089,34 +1089,6 @@ export const commands: ChatCommands = {
 					this.sendReply('|uhtmlchange|rpg-' + user.id + '|' + generateBattleHTML(battle, messageLog));
 				}
 			},
-			'catch'(target, room, user) {
-				const battle = activeBattles.get(user.id);
-				if (!battle) return this.errorReply("You are not in a battle.");
-				const [, ballType = 'pokeball'] = target.split(' ');
-				const player = battle.player;
-				if (!player.inventory.has(ballType)) return this.errorReply(`You don't have any ${ITEMS_DATABASE[ballType]?.name}s!`);
-				if (player.party.length >= 6 && player.pc.size >= 100) return this.errorReply("Your party and PC are full!");
-				removeItemFromInventory(player, ballType, 1);
-				let catchRateMultiplier = 1;
-				if (ballType === 'greatball') catchRateMultiplier = 1.5;
-				if (ballType === 'ultraball') catchRateMultiplier = 2;
-				const catchChance = Math.min(0.9, (1 - (battle.wildPokemon.hp / battle.wildPokemon.maxHp)) * 0.3 * catchRateMultiplier);
-				if (Math.random() < catchChance) {
-					activeBattles.delete(user.id);
-					const caughtPokemon = battle.wildPokemon;
-					const location = player.party.length < 6 ? "your party" : "PC";
-					if (player.party.length < 6) player.party.push(caughtPokemon);
-					else storePokemonInPC(player, caughtPokemon);
-					this.sendReply(`|uhtmlchange|rpg-${user.id}|<div class="infobox"><h2>Gotcha!</h2><p><strong>${caughtPokemon.species}</strong> was caught!</p>${generatePokemonInfoHTML(caughtPokemon)}<p>${caughtPokemon.species} has been sent to ${location}.</p><p><button name="send" value="/rpg wildpokemon" class="button">Find Another</button><button name="send" value="/rpg menu" class="button">Back to Menu</button></p></div>`);
-				} else {
-					const messageLog = [`Oh no! The wild ${battle.wildPokemon.species} broke free!`];
-					const wildMoveId = battle.wildPokemon.moves[Math.floor(Math.random() * battle.wildPokemon.moves.length)];
-					const wildResult = calculateDamage(battle.wildPokemon, battle.activePokemon, wildMoveId);
-					battle.activePokemon.hp = Math.max(0, battle.activePokemon.hp - wildResult.damage);
-					messageLog.push(wildResult.message);
-					this.sendReply(`|uhtmlchange|rpg-${user.id}|${generateBattleHTML(battle, messageLog)}`);
-				}
-			},
 			'run'(target, room, user) {
 				if (!activeBattles.has(user.id)) return this.errorReply("You are not in a battle.");
 				activeBattles.delete(user.id);
