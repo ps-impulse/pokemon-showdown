@@ -678,3 +678,5 @@ export const MANUAL_LEARNSETS: Record<string, Record<number, string[]>> = {
 	'terapagos': { 1: ['rapid-spin', 'tri-attack', 'withdraw'], 10: ['ancient-power'], 20: ['headbutt'], 30: ['protect'], 40: ['earth-power'], 50: ['heavy-slam'], 60: ['tera-starstorm'], 70: ['double-edge'], 80: ['rock-polish'], 90: ['gyro-ball'] },
 	'pecharunt': { 0: ['defense-curl', 'mean-look', 'rollout'], 1: ['astonish', 'memento', 'poison-gas', 'smog'], 8: ['withdraw'], 16: ['destiny-bond'], 24: ['fake-tears'], 32: ['parting-shot'], 40: ['shadow-ball'], 48: ['malignant-chain'], 56: ['toxic'], 64: ['nasty-plot'], 72: ['recover'] }
 };
+
+	Imoulse.MANUAL_LEARNSETS = MANUAL_LEARNSETS;
