@@ -1036,216 +1036,213 @@ export const commands: ChatCommands = {
 
 		battleaction: {
 			'move'(target, room, user) {
-				const battle = activeBattles.get(user.id);
-				if (!battle) return this.errorReply("You are not in a battle.");
-				
-				const player = getPlayerData(battle.playerId);
-				const playerPokemon = player.party.find(p => p.id === battle.activePokemon.id);
-				if (!playerPokemon) return this.errorReply("Active pokemon not found.");
+    const battle = activeBattles.get(user.id);
+    if (!battle) return this.errorReply("You are not in a battle.");
+    
+    const player = getPlayerData(battle.playerId);
+    const playerPokemon = player.party.find(p => p.id === battle.activePokemon.id);
+    if (!playerPokemon) return this.errorReply("Active pokemon not found.");
 
-				const moveId = toID(target);
-				if (!playerPokemon.moves.includes(moveId)) return this.errorReply("Invalid move.");
+    const moveId = toID(target);
+    if (!playerPokemon.moves.includes(moveId)) return this.errorReply("Invalid move.");
 
-				const messageLog: string[] = [];
-				const { wildPokemon } = battle;
+    const messageLog: string[] = [];
+    const { wildPokemon } = battle;
 
-				const playerAction = { pokemon: playerPokemon, move: Dex.moves.get(moveId) };
-				const wildAction = { pokemon: wildPokemon, move: Dex.moves.get(wildPokemon.moves[Math.floor(Math.random() * wildPokemon.moves.length)]) };
+    const playerAction = { pokemon: playerPokemon, move: Dex.moves.get(moveId) };
+    const wildAction = { pokemon: wildPokemon, move: Dex.moves.get(wildPokemon.moves[Math.floor(Math.random() * wildPokemon.moves.length)]) };
 
-				let playerSpe = playerAction.pokemon.spe;
-				if (battle.playerStatus === 'par') playerSpe = Math.floor(playerSpe / 2);
-				let wildSpe = wildAction.pokemon.spe;
-				if (battle.wildStatus === 'par') wildSpe = Math.floor(wildSpe / 2);
+    let playerSpe = playerAction.pokemon.spe;
+    if (battle.playerStatus === 'par') playerSpe = Math.floor(playerSpe / 2);
+    let wildSpe = wildAction.pokemon.spe;
+    if (battle.wildStatus === 'par') wildSpe = Math.floor(wildSpe / 2);
 
-				let turnOrder;
-				if (playerAction.move.priority > wildAction.move.priority) {
-					turnOrder = [playerAction, wildAction];
-				} else if (wildAction.move.priority > playerAction.move.priority) {
-					turnOrder = [wildAction, playerAction];
-				} else {
-					turnOrder = (playerSpe >= wildSpe) ? [playerAction, wildAction] : [wildAction, playerAction];
-				}
+    let turnOrder;
+    if (playerAction.move.priority > wildAction.move.priority) {
+        turnOrder = [playerAction, wildAction];
+    } else if (wildAction.move.priority > playerAction.move.priority) {
+        turnOrder = [wildAction, playerAction];
+    } else {
+        turnOrder = (playerSpe >= wildSpe) ? [playerAction, wildAction] : [wildAction, playerAction];
+    }
 
-				for (const turn of turnOrder) {
-					if (turn.pokemon.hp <= 0) continue;
+    for (const turn of turnOrder) {
+        const attacker = turn.pokemon;
+        if (attacker.hp <= 0) continue;
 
-					const attacker = turn.pokemon;
-					const defender = (attacker === playerPokemon) ? wildPokemon : playerPokemon;
-					const move = turn.move;
-					const attackerStatus = (attacker === playerPokemon) ? battle.playerStatus : battle.wildStatus;
-					
-					if (attackerStatus === 'frz') {
-						if (Math.random() < 0.20) {
-							if (attacker === playerPokemon) battle.playerStatus = null; else battle.wildStatus = null;
-							messageLog.push(`${attacker.species} thawed out!`);
-						} else {
-							messageLog.push(`${attacker.species} is frozen solid!`);
-							continue;
-						}
-					}
-					if (attackerStatus === 'slp') {
-						let sleepCounter = (attacker === playerPokemon) ? battle.playerSleepCounter : battle.wildSleepCounter;
-						if (sleepCounter > 0) {
-							messageLog.push(`${attacker.species} is fast asleep.`);
-							sleepCounter--;
-							if (attacker === playerPokemon) battle.playerSleepCounter = sleepCounter; else battle.wildSleepCounter = sleepCounter;
-							continue;
-						} else {
-							if (attacker === playerPokemon) battle.playerStatus = null; else battle.wildStatus = null;
-							messageLog.push(`${attacker.species} woke up!`);
-						}
-					}
-					if (attackerStatus === 'par' && Math.random() < 0.25) {
-						messageLog.push(`${attacker.species} is fully paralyzed!`);
-						continue;
-					}
-					
-					const attackerStages = (attacker === playerPokemon) ? battle.playerStatStages : battle.wildStatStages;
-					const defenderStages = (defender === playerPokemon) ? battle.playerStatStages : battle.wildStatStages;
+        const defender = (attacker === playerPokemon) ? wildPokemon : playerPokemon;
+        const move = turn.move;
+        const attackerStatus = (attacker === playerPokemon) ? battle.playerStatus : battle.wildStatus;
+        
+        // This part correctly handles the EFFECTS of being frozen, asleep, or paralyzed
+        if (attackerStatus === 'frz') {
+            if (Math.random() < 0.20) {
+                if (attacker === playerPokemon) battle.playerStatus = null; else battle.wildStatus = null;
+                messageLog.push(`${attacker.species} thawed out!`);
+            } else {
+                messageLog.push(`${attacker.species} is frozen solid!`);
+                continue;
+            }
+        }
+        if (attackerStatus === 'slp') {
+            let sleepCounter = (attacker === playerPokemon) ? battle.playerSleepCounter : battle.wildSleepCounter;
+            if (sleepCounter > 0) {
+                messageLog.push(`${attacker.species} is fast asleep.`);
+                sleepCounter--;
+                if (attacker === playerPokemon) battle.playerSleepCounter = sleepCounter; else battle.wildSleepCounter = sleepCounter;
+                continue;
+            } else {
+                if (attacker === playerPokemon) battle.playerStatus = null; else battle.wildStatus = null;
+                messageLog.push(`${attacker.species} woke up!`);
+            }
+        }
+        if (attackerStatus === 'par' && Math.random() < 0.25) {
+            messageLog.push(`${attacker.species} is fully paralyzed!`);
+            continue;
+        }
+        
+        const attackerStages = (attacker === playerPokemon) ? battle.playerStatStages : battle.wildStatStages;
+        const defenderStages = (defender === playerPokemon) ? battle.playerStatStages : battle.wildStatStages;
 
-					let attackResult = { damage: 0, message: "" };
+        if (move.category === 'Status') {
+            messageLog.push(`${attacker.species} used ${move.name}!`);
+            const defenderCurrentStatus = (defender === playerPokemon) ? battle.playerStatus : battle.wildStatus;
+            
+            if (move.boosts) {
+                // ... logic for stat changes
+                const targetPokemon = move.target === 'self' ? attacker : defender;
+                const targetStages = move.target === 'self' ? attackerStages : defenderStages;
+                let changed = false;
+                let raised = false;
+                let lowered = false;
+                for (const stat in move.boosts) {
+                    const statName = stat as keyof Omit<Stats, 'maxHp'>;
+                    const boostValue = move.boosts[statName]!;
+                    if (boostValue > 0) {
+                        if (targetStages[statName] < 6) {
+                            targetStages[statName] = Math.min(6, targetStages[statName] + boostValue);
+                            changed = true;
+                            raised = true;
+                        }
+                    } else {
+                        if (targetStages[statName] > -6) {
+                            targetStages[statName] = Math.max(-6, targetStages[statName] + boostValue);
+                            changed = true;
+                            lowered = true;
+                        }
+                    }
+                }
+                if (!changed) {
+                    messageLog.push(`But it failed!`);
+                } else if (raised && !lowered) {
+                    messageLog.push(`${targetPokemon.species}'s stats were raised!`);
+                } else if (lowered && !raised) {
+                    messageLog.push(`${targetPokemon.species}'s stats were lowered!`);
+                }
+            } else if (move.status) {
+                // FIX HERE: This block now correctly applies ALL status types from moves like Thunder Wave
+                if (defenderCurrentStatus) {
+                    messageLog.push(`But it failed!`);
+                } else {
+                    const status = move.status as Status;
+                    if (status === 'slp') {
+                        const sleepTurns = 1 + Math.floor(Math.random() * 3);
+                        if (defender === playerPokemon) {
+                            battle.playerStatus = 'slp';
+                            battle.playerSleepCounter = sleepTurns;
+                        } else {
+                            battle.wildStatus = 'slp';
+                            battle.wildSleepCounter = sleepTurns;
+                        }
+                        messageLog.push(`${defender.species} fell asleep!`);
+                    } else {
+                        if (defender === playerPokemon) {
+                            battle.playerStatus = status;
+                        } else {
+                            battle.wildStatus = status;
+                        }
+                        messageLog.push(`${defender.species} was afflicted with ${status}!`);
+                    }
+                }
+            } else {
+                messageLog.push(`But it had no effect!`);
+            }
+        } else {
+            const attackResult = calculateDamage(attacker, defender, move.id, attackerStages, defenderStages, attackerStatus);
+            defender.hp = Math.max(0, defender.hp - attackResult.damage);
+            messageLog.push(attackResult.message);
+            if (attackResult.damage > 0) {
+                const defenderName = (defender === wildPokemon) ? `The wild ${wildPokemon.species}` : playerPokemon.species;
+                messageLog.push(`${defenderName} took ${attackResult.damage} damage!`);
 
-					if (move.category === 'Status') {
-						messageLog.push(`${attacker.species} used ${move.name}!`);
-						const defenderCurrentStatus = (defender === playerPokemon) ? battle.playerStatus : battle.wildStatus;
-						
-						if (move.boosts) {
-							const targetPokemon = move.target === 'self' ? attacker : defender;
-							const targetStages = move.target === 'self' ? attackerStages : defenderStages;
-							let changed = false;
-							let raised = false;
-							let lowered = false;
+                // FIX HERE: This block now correctly applies ALL status types from secondary effects
+                if (move.secondary && move.secondary.status && Math.random() * 100 < move.secondary.chance) {
+                    const defenderCurrentStatus = (defender === playerPokemon) ? battle.playerStatus : battle.wildStatus;
+                    if (!defenderCurrentStatus) {
+                        const status = move.secondary.status as Status;
+                        if (status === 'slp') {
+                            const sleepTurns = 1 + Math.floor(Math.random() * 3);
+                            if (defender === playerPokemon) {
+                                battle.playerStatus = 'slp';
+                                battle.playerSleepCounter = sleepTurns;
+                            } else {
+                                battle.wildStatus = 'slp';
+                                battle.wildSleepCounter = sleepTurns;
+                            }
+                            messageLog.push(`${defender.species} fell asleep!`);
+                        } else {
+                            if (defender === playerPokemon) {
+                                battle.playerStatus = status;
+                            } else {
+                                battle.wildStatus = status;
+                            }
+                            messageLog.push(`${defender.species} was afflicted with ${status}!`);
+                        }
+                    }
+                }
+            }
+        }
+        
+        if (wildPokemon.hp <= 0 || playerPokemon.hp <= 0) break;
+    }
 
-							for (const stat in move.boosts) {
-								const statName = stat as keyof Omit<Stats, 'maxHp'>;
-								const boostValue = move.boosts[statName]!;
-								
-								if (boostValue > 0) {
-									if (targetStages[statName] < 6) {
-										targetStages[statName] = Math.min(6, targetStages[statName] + boostValue);
-										changed = true;
-										raised = true;
-									}
-								} else {
-									if (targetStages[statName] > -6) {
-										targetStages[statName] = Math.max(-6, targetStages[statName] + boostValue);
-										changed = true;
-										lowered = true;
-									}
-								}
-							}
+    if (wildPokemon.hp > 0 && playerPokemon.hp > 0) {
+        const endTurnOrder = [playerPokemon, wildPokemon];
+        for (const pokemon of endTurnOrder) {
+            const status = (pokemon === playerPokemon) ? battle.playerStatus : battle.wildStatus;
+            if (status === 'brn' || status === 'psn') {
+                const damage = Math.max(1, Math.floor(pokemon.maxHp / 16));
+                pokemon.hp = Math.max(0, pokemon.hp - damage);
+                const statusName = status === 'brn' ? 'burn' : 'poison';
+                messageLog.push(`${pokemon.species} was hurt by its ${statusName}!`);
+            }
+        }
+    }
 
-							if (!changed) {
-								messageLog.push(`But it failed!`);
-							} else if (raised && !lowered) {
-								messageLog.push(`${targetPokemon.species}'s stats were raised!`);
-							} else if (lowered && !raised) {
-								messageLog.push(`${targetPokemon.species}'s stats were lowered!`);
-							}
+    if (wildPokemon.hp <= 0) {
+        activeBattles.delete(user.id);
+        const moneyGained = Math.floor(wildPokemon.level * 10);
+        player.money += moneyGained;
+        const { messages: expMessages } = gainExperience(player, playerPokemon, wildPokemon, room, user);
+        if (player.pendingMoveLearnQueue?.moveIds.length) {
+            return this.sendReply(`|uhtmlchange|rpg-${user.id}|${generateMoveLearnHTML(player)}`);
+        }
+        return this.sendReply(`|uhtmlchange|rpg-${user.id}|${generateVictoryHTML(wildPokemon, expMessages, moneyGained)}`);
+    }
 
-						} else if (move.status) {
-							if (defenderCurrentStatus) {
-								messageLog.push(`But it failed!`);
-							} else {
-								const status = move.status as Status;
-								if (status === 'slp') {
-									const sleepTurns = 1 + Math.floor(Math.random() * 3);
-									if (defender === playerPokemon) {
-										battle.playerStatus = 'slp';
-										battle.playerSleepCounter = sleepTurns;
-									} else {
-										battle.wildStatus = 'slp';
-										battle.wildSleepCounter = sleepTurns;
-									}
-									messageLog.push(`${defender.species} fell asleep!`);
-								} else {
-									if (defender === playerPokemon) {
-										battle.playerStatus = status;
-									} else {
-										battle.wildStatus = status;
-									}
-									messageLog.push(`${defender.species} was afflicted with the ${status} status!`);
-								}
-							}
-						} else {
-							messageLog.push(`But it had no effect!`);
-						}
-					} else {
-						attackResult = calculateDamage(attacker, defender, move.id, attackerStages, defenderStages, attackerStatus);
-						defender.hp = Math.max(0, defender.hp - attackResult.damage);
-						messageLog.push(attackResult.message);
-						if (attackResult.damage > 0) {
-							const defenderName = (defender === wildPokemon) ? `The wild ${wildPokemon.species}` : playerPokemon.species;
-							messageLog.push(`${defenderName} took ${attackResult.damage} damage!`);
-
-							if (move.secondary && move.secondary.status && Math.random() * 100 < move.secondary.chance) {
-								const defenderCurrentStatus = (defender === playerPokemon) ? battle.playerStatus : battle.wildStatus;
-								if (!defenderCurrentStatus) {
-									if (move.secondary.status === 'slp') {
-										const sleepTurns = 1 + Math.floor(Math.random() * 3);
-										if (defender === playerPokemon) {
-											battle.playerStatus = 'slp';
-											battle.playerSleepCounter = sleepTurns;
-										} else {
-											battle.wildStatus = 'slp';
-											battle.wildSleepCounter = sleepTurns;
-										}
-										messageLog.push(`${defender.species} fell asleep!`);
-									} else {
-										if (defender === playerPokemon) {
-											battle.playerStatus = move.secondary.status as Status;
-										} else {
-											battle.wildStatus = move.secondary.status as Status;
-										}
-										messageLog.push(`${defender.species} was afflicted with ${move.secondary.status}!`);
-									}
-								}
-							}
-						}
-					}
-					
-					if (wildPokemon.hp === 0 || playerPokemon.hp === 0) break;
-				}
-
-				if (wildPokemon.hp > 0 && playerPokemon.hp > 0) {
-					// Create a fresh turn order array for end-of-turn effects, in case a pokemon fainted
-					const liveTurnOrder = turnOrder.filter(t => t.pokemon.hp > 0);
-					for (const turn of liveTurnOrder) {
-						const pokemon = turn.pokemon;
-						const status = (pokemon === playerPokemon) ? battle.playerStatus : battle.wildStatus;
-						if (status === 'brn' || status === 'psn') {
-							const damage = Math.max(1, Math.floor(pokemon.maxHp / 16));
-							pokemon.hp = Math.max(0, pokemon.hp - damage);
-							const statusName = status === 'brn' ? 'burn' : 'poison';
-							messageLog.push(`${pokemon.species} was hurt by its ${statusName}!`);
-						}
-					}
-				}
-
-				if (wildPokemon.hp <= 0) {
-					activeBattles.delete(user.id);
-					const moneyGained = Math.floor(wildPokemon.level * 10);
-					player.money += moneyGained;
-					const { messages: expMessages } = gainExperience(player, playerPokemon, wildPokemon, room, user);
-					if (player.pendingMoveLearnQueue?.moveIds.length) {
-						return this.sendReply(`|uhtmlchange|rpg-${user.id}|${generateMoveLearnHTML(player)}`);
-					}
-					return this.sendReply(`|uhtmlchange|rpg-${user.id}|${generateVictoryHTML(wildPokemon, expMessages, moneyGained)}`);
-				}
-
-				if (playerPokemon.hp <= 0) {
-					if (!player.party.some(p => p.hp > 0)) {
-						activeBattles.delete(user.id);
-						const moneyLost = Math.min(player.money, 100);
-						player.money -= moneyLost;
-						return this.sendReply(`|uhtmlchange|rpg-${user.id}|${generateDefeatHTML(moneyLost)}`);
-					} else {
-						return this.sendReply(`|uhtmlchange|rpg-${user.id}|${generateSwitchPokemonHTML(battle, "Choose a Pokemon to switch to.")}`);
-					}
-				}
-				
-				this.sendReply(`|uhtmlchange|rpg-${user.id}|${generateBattleHTML(battle, messageLog)}`);
-			},
+    if (playerPokemon.hp <= 0) {
+        if (!player.party.some(p => p.hp > 0)) {
+            activeBattles.delete(user.id);
+            const moneyLost = Math.min(player.money, 100);
+            player.money -= moneyLost;
+            return this.sendReply(`|uhtmlchange|rpg-${user.id}|${generateDefeatHTML(moneyLost)}`);
+        } else {
+            return this.sendReply(`|uhtmlchange|rpg-${user.id}|${generateSwitchPokemonHTML(battle, "Choose a Pokemon to switch to.")}`);
+        }
+    }
+    
+    this.sendReply(`|uhtmlchange|rpg-${user.id}|${generateBattleHTML(battle, messageLog)}`);
+},
 			'switch'(target, room, user) {
 				const battle = activeBattles.get(user.id);
 				if (!battle) return this.errorReply("You are not in a battle.");
