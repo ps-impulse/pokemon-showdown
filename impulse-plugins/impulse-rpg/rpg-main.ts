@@ -112,8 +112,13 @@ const MANUAL_EV_YIELDS = Impulse.MANUAL_EV_YIELDS;
 
 const MANUAL_LEARNSETS = Impulse.MANUAL_LEARNSETS;
 
-const MANUAL_EVOLUTIONS = Impulse.MANUAL_EVOLUTIONS;
-
+/*
+const MANUAL_EVOLUTIONS: Record<string, { evoLevel: number, evoTo: string }> = {
+	'bulbasaur': { evoLevel: 16, evoTo: 'ivysaur' }, 'ivysaur': { evoLevel: 32, evoTo: 'venusaur' },
+	'charmander': { evoLevel: 16, evoTo: 'charmeleon' }, 'charmeleon': { evoLevel: 36, evoTo: 'charizard' },
+	'squirtle': { evoLevel: 16, evoTo: 'wartortle' }, 'wartortle': { evoLevel: 36, evoTo: 'blastoise' },
+};
+*/
 // Type Chart
 const TYPE_CHART: { [type: string]: { superEffective: string[], notVeryEffective: string[], noEffect: string[] } } = {
 	Normal: { superEffective: [], notVeryEffective: ['Rock', 'Steel'], noEffect: ['Ghost'] },
@@ -136,10 +141,12 @@ const TYPE_CHART: { [type: string]: { superEffective: string[], notVeryEffective
 	Fairy: { superEffective: ['Fighting', 'Dragon', 'Dark'], notVeryEffective: ['Fire', 'Poison', 'Steel'], noEffect: [] },
 };
 
+/*
 const NATURES: Record<string, { plus: keyof Stats, minus: keyof Stats } | null> = {
     'Adamant': { plus: 'atk', minus: 'spa' }, 'Bashful': null, 'Brave': { plus: 'atk', minus: 'spe' }, 'Bold': { plus: 'def', minus: 'atk' }, 'Calm': { plus: 'spd', minus: 'atk' }, 'Careful': { plus: 'spd', minus: 'spa' }, 'Docile': null, 'Gentle': { plus: 'spd', minus: 'def' }, 'Hardy': null, 'Hasty': { plus: 'spe', minus: 'def' }, 'Impish': { plus: 'def', minus: 'spa' }, 'Jolly': { plus: 'spe', minus: 'spa' }, 'Lax': { plus: 'def', minus: 'spd' }, 'Lonely': { plus: 'atk', minus: 'def' }, 'Mild': { plus: 'spa', minus: 'def' }, 'Modest': { plus: 'spa', minus: 'atk' }, 'Naive': { plus: 'spe', minus: 'spd' }, 'Naughty': { plus: 'atk', minus: 'spd' }, 'Quiet': { plus: 'spa', minus: 'spe' }, 'Quirky': null, 'Rash': { plus: 'spa', minus: 'spd' }, 'Relaxed': { plus: 'def', minus: 'spe' }, 'Sassy': { plus: 'spd', minus: 'spe' }, 'Serious': null, 'Timid': { plus: 'spe', minus: 'atk' },
 };
 const NATURE_LIST = Object.keys(NATURES);
+*/
 type Stats = Omit<RPGPokemon, 'species' | 'level' | 'experience' | 'moves' | 'id' | 'expToNextLevel' | 'hp' | 'ability' | 'item' | 'nature' | 'growthRate' | 'ivs' | 'evs' | 'status'>;
 
 function getCustomEffectiveness(moveType: string, defenderTypes: string[]): number {
@@ -227,10 +234,11 @@ function calculateStats(species: any, level: number, nature: string, ivs: Record
 	stats.spa = Math.floor(((2 * species.baseStats.spa + ivs.spa + Math.floor(evs.spa / 4)) * level) / 100) + 5;
 	stats.spd = Math.floor(((2 * species.baseStats.spd + ivs.spd + Math.floor(evs.spd / 4)) * level) / 100) + 5;
 	stats.spe = Math.floor(((2 * species.baseStats.spe + ivs.spe + Math.floor(evs.spe / 4)) * level) / 100) + 5;
-	const natureEffect = NATURES[nature];
-    if (natureEffect) {
-        stats[natureEffect.plus] = Math.floor(stats[natureEffect.plus] * 1.1);
-        stats[natureEffect.minus] = Math.floor(stats[natureEffect.minus] * 0.9);
+	
+	const natureEffect = Dex.natures.get(nature);
+    if (natureEffect && natureEffect.plus && natureEffect.minus) {
+        stats[natureEffect.plus as keyof Stats] = Math.floor(stats[natureEffect.plus as keyof Stats] * 1.1);
+        stats[natureEffect.minus as keyof Stats] = Math.floor(stats[natureEffect.minus as keyof Stats] * 0.9);
     }
 	return stats;
 }
@@ -239,7 +247,8 @@ function createPokemon(speciesId: string, level: number = 5): RPGPokemon {
 	const species = Dex.species.get(speciesId);
 	if (!species.exists) throw new Error('Pokemon ' + speciesId + ' not found');
 
-	const randomNature = NATURE_LIST[Math.floor(Math.random() * NATURE_LIST.length)];
+	const natureKeys = Object.keys(Dex.natures.all());
+	const randomNature = natureKeys[Math.floor(Math.random() * natureKeys.length)];
 	const ivs = { hp: Math.floor(Math.random() * 32), atk: Math.floor(Math.random() * 32), def: Math.floor(Math.random() * 32), spa: Math.floor(Math.random() * 32), spd: Math.floor(Math.random() * 32), spe: Math.floor(Math.random() * 32) };
 	const evs = { hp: 0, atk: 0, def: 0, spa: 0, spd: 0, spe: 0 };
 	const stats = calculateStats(species, level, randomNature, ivs, evs);
@@ -338,7 +347,7 @@ function generatePokemonInfoHTML(
 	const expProgress = pokemon.experience - expForLastLevel;
 	const expNeededForLevel = expForNextLevel - expForLastLevel;
 	const expPercentage = Math.max(0, Math.floor((expProgress / expNeededForLevel) * 100));
-	
+
 	const displayStatus = status || pokemon.status;
 	const statusColors: Record<Status, string> = { 'brn': '#F08030', 'par': '#F8D030', 'psn': '#A040A0', 'slp': '#9898E8', 'frz': '#98D8D8' };
 	const statusTag = displayStatus ? `<span style="background-color: ${statusColors[displayStatus]}; color: white; padding: 1px 4px; border-radius: 3px; font-size: 10px; text-transform: uppercase; vertical-align: middle; margin-left: 5px;">${displayStatus}</span>` : '';
@@ -648,10 +657,16 @@ function gainExperience(player: PlayerData, pokemon: RPGPokemon, defeatedPokemon
 
 function checkEvolution(player: PlayerData, pokemon: RPGPokemon, room: ChatRoom, user: User): string | null {
 	const speciesId = toID(pokemon.species);
-	const evoData = MANUAL_EVOLUTIONS[speciesId];
-	if (!evoData || pokemon.level < evoData.evoLevel) return null;
-	const evoSpecies = Dex.species.get(evoData.evoTo);
+	const species = Dex.species.get(speciesId);
+	
+	if (!species.evos?.length || !species.evoLevel || pokemon.level < species.evoLevel) {
+		return null;
+	}
+
+	const evoTo = species.evos[0];
+	const evoSpecies = Dex.species.get(evoTo);
 	if (!evoSpecies.exists) return null;
+
 	const oldSpeciesName = pokemon.species;
 	pokemon.species = evoSpecies.name;
 	const newStats = calculateStats(evoSpecies, pokemon.level, pokemon.nature, pokemon.ivs, pokemon.evs);
