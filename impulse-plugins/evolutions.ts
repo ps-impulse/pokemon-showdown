@@ -340,3 +340,5 @@ export const MANUAL_EVOLUTIONS: Record<string, { evoLevel: number, evoTo: string
 	'frigibax': { evoLevel: 35, evoTo: 'arctibax' },
 	'arctibax': { evoLevel: 54, evoTo: 'baxcalibur' }
 };
+
+Impulse.MANUAL_EVOLUTIONS = MANUAL_EVOLUTIONS;
