@@ -994,35 +994,56 @@ export const commands: ChatCommands = {
 				if (!battle) return this.errorReply("You are not in a battle.");
 				const moveId = target.trim();
 				if (!battle.activePokemon.moves.includes(moveId)) return this.errorReply("Invalid move.");
+
 				const messageLog: string[] = [];
 				const { activePokemon: playerPokemon, wildPokemon } = battle;
-				const playerResult = calculateDamage(playerPokemon, wildPokemon, moveId);
-				wildPokemon.hp = Math.max(0, wildPokemon.hp - playerResult.damage);
-				messageLog.push(playerResult.message);
-				if (playerResult.damage > 0) messageLog.push(`The wild ${wildPokemon.species} took ${playerResult.damage} damage!`);
-				if (wildPokemon.hp === 0) {
-					activeBattles.delete(user.id);
-					const moneyGained = Math.floor(wildPokemon.level * 10);
-					battle.player.money += moneyGained;
-					const { messages: expMessages } = gainExperience(battle.player, playerPokemon, wildPokemon, room, user);
-					if (battle.player.pendingMoveLearnQueue?.moveIds.length) return this.sendReply(`|uhtmlchange|rpg-${user.id}|${generateMoveLearnHTML(battle.player)}`);
-					return this.sendReply(`|uhtmlchange|rpg-${user.id}|${generateVictoryHTML(wildPokemon, expMessages, moneyGained)}`);
-				}
-				const wildMoveId = wildPokemon.moves[Math.floor(Math.random() * wildPokemon.moves.length)];
-				const wildResult = calculateDamage(wildPokemon, playerPokemon, wildMoveId);
-				playerPokemon.hp = Math.max(0, playerPokemon.hp - wildResult.damage);
-				messageLog.push(wildResult.message);
-				if (wildResult.damage > 0) messageLog.push(`${playerPokemon.species} took ${wildResult.damage} damage!`);
-				if (playerPokemon.hp === 0) {
-					if (!battle.player.party.some(p => p.hp > 0)) {
+
+				// 1. Determine Turn Order based on Speed
+				const playerGoesFirst = playerPokemon.spe >= wildPokemon.spe;
+				const turnOrder = playerGoesFirst ? [playerPokemon, wildPokemon] : [wildPokemon, playerPokemon];
+
+				// 2. Process turns sequentially
+				for (const attacker of turnOrder) {
+					// If the current attacker fainted from the first hit, it doesn't get to move.
+					if (attacker.hp <= 0) continue;
+
+					const defender = (attacker === playerPokemon) ? wildPokemon : playerPokemon;
+					const currentMoveId = (attacker === playerPokemon) ? moveId : wildPokemon.moves[Math.floor(Math.random() * wildPokemon.moves.length)];
+
+					// Process the attack
+					const attackResult = calculateDamage(attacker, defender, currentMoveId);
+					defender.hp = Math.max(0, defender.hp - attackResult.damage);
+					messageLog.push(attackResult.message);
+					if (attackResult.damage > 0) {
+						const defenderName = (defender === wildPokemon) ? `The wild ${wildPokemon.species}` : playerPokemon.species;
+						messageLog.push(`${defenderName} took ${attackResult.damage} damage!`);
+					}
+
+					// 3. Check for faints immediately after each attack
+					if (wildPokemon.hp === 0) {
 						activeBattles.delete(user.id);
-						const moneyLost = Math.min(battle.player.money, 100);
-						battle.player.money -= moneyLost;
-						return this.sendReply(`|uhtmlchange|rpg-${user.id}|${generateDefeatHTML(moneyLost)}`);
-					} else {
-						return this.sendReply(`|uhtmlchange|rpg-${user.id}|${generateSwitchPokemonHTML(battle, "Choose a Pokemon to switch to.")}`);
+						const moneyGained = Math.floor(wildPokemon.level * 10);
+						battle.player.money += moneyGained;
+						const { messages: expMessages } = gainExperience(battle.player, playerPokemon, wildPokemon, room, user);
+						if (battle.player.pendingMoveLearnQueue?.moveIds.length) {
+							return this.sendReply(`|uhtmlchange|rpg-${user.id}|${generateMoveLearnHTML(battle.player)}`);
+						}
+						return this.sendReply(`|uhtmlchange|rpg-${user.id}|${generateVictoryHTML(wildPokemon, expMessages, moneyGained)}`);
+					}
+
+					if (playerPokemon.hp === 0) {
+						if (!battle.player.party.some(p => p.hp > 0)) {
+							activeBattles.delete(user.id);
+							const moneyLost = Math.min(battle.player.money, 100);
+							battle.player.money -= moneyLost;
+							return this.sendReply(`|uhtmlchange|rpg-${user.id}|${generateDefeatHTML(moneyLost)}`);
+						} else {
+							return this.sendReply(`|uhtmlchange|rpg-${user.id}|${generateSwitchPokemonHTML(battle, "Choose a Pokemon to switch to.")}`);
+						}
 					}
 				}
+
+				// 4. If no one fainted after both turns, update the battle state
 				this.sendReply(`|uhtmlchange|rpg-${user.id}|${generateBattleHTML(battle, messageLog)}`);
 			},
 			'switch'(target, room, user) {
