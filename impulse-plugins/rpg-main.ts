@@ -1,7 +1,7 @@
 // Pokemon RPG Plugin for Pokemon Showdown
 
 //import { MANUAL_EVOLUTIONS } from './evolutions.ts';
-import { MANUAL_LEARNSETS } from '../../impulse-plugins/impulse-rpg/learnsets.ts';
+import { MANUAL_LEARNSETS } from './impulse-plugins/impulse-rpg/learnsets.ts';
 import { MANUAL_BASE_EXP } from './base-exp.ts';
 import { MANUAL_EV_YIELDS } from './ev-yields.ts';
 
