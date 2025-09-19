@@ -98,8 +98,20 @@ const MANUAL_LEARNSETS = Impulse.MANUAL_LEARNSETS;
 
 const MANUAL_EVOLUTIONS = Impulse.MANUAL_EVOLUTIONS;
 
-// Manual Base Experience Database
-/*const MANUAL_BASE_EXP: Record<string, number> = {
+// Manual Databases (Commented out as per original file structure)
+/*
+const MANUAL_CATCH_RATES: Record<string, number> = {
+	'rattata': 255,
+	'pidgey': 255,
+	'caterpie': 255,
+	'weedle': 255,
+	'zubat': 255,
+	'geodude': 255,
+	'magikarp': 255,
+	'psyduck': 190,
+};
+
+const MANUAL_BASE_EXP: Record<string, number> = {
 	'rattata': 100, 'pidgey': 100, 'caterpie': 100, 'weedle': 100, 'zubat': 100, 'geodude': 100, 'magikarp': 100, 'psyduck': 100,
 	'bulbasaur': 64, 'ivysaur': 142, 'venusaur': 236, 'charmander': 65, 'charmeleon': 142, 'charizard': 240, 'squirtle': 63, 'wartortle': 142, 'blastoise': 239,
 	'chikorita': 64, 'bayleef': 142, 'meganium': 236, 'cyndaquil': 65, 'quilava': 142, 'typhlosion': 240, 'totodile': 66, 'croconaw': 142, 'feraligatr': 239,
@@ -115,7 +127,6 @@ const MANUAL_EV_YIELDS: Record<string, Partial<Record<keyof Stats, number>>> = {
     'totodile': { atk: 1 }, 'croconaw': { atk: 2 }, 'feraligatr': { atk: 3 },
 };
 
-// Manual Learnset Database
 const MANUAL_LEARNSETS: Record<string, Record<number, string[]>> = {
 	'bulbasaur': { 1: ['tackle', 'growl'], 3: ['leechseed'], 7: ['vinewhip'], 13: ['razorleaf'] },
 	'ivysaur': { 1: ['tackle', 'growl'], 3: ['leechseed'], 7: ['vinewhip'], 13: ['razorleaf'], 20: ['sleeppowder', 'poisonpowder'] },
@@ -128,7 +139,6 @@ const MANUAL_LEARNSETS: Record<string, Record<number, string[]>> = {
 	'blastoise': { 1: ['tackle', 'tailwhip'], 4: ['bubble'], 7: ['watergun'], 13: ['bite'], 19: ['rapidspin'], 32: ['hydropump'] },
 };
 
-// Manual Evolution Database
 const MANUAL_EVOLUTIONS: Record<string, { evoLevel: number, evoTo: string }> = {
 	'bulbasaur': { evoLevel: 16, evoTo: 'ivysaur' }, 'ivysaur': { evoLevel: 32, evoTo: 'venusaur' },
 	'charmander': { evoLevel: 16, evoTo: 'charmeleon' }, 'charmeleon': { evoLevel: 36, evoTo: 'charizard' },
@@ -1065,28 +1075,57 @@ export const commands: ChatCommands = {
 			'catch'(target, room, user) {
 				const battle = activeBattles.get(user.id);
 				if (!battle) return this.errorReply("You are not in a battle.");
+
 				const [, ballType = 'pokeball'] = target.split(' ');
 				const player = battle.player;
-				if (!player.inventory.has(ballType)) return this.errorReply('You don\'t have any ' + ITEMS_DATABASE[ballType]?.name + 's!');
-				if (player.party.length >= 6 && player.pc.size >= 100) return this.errorReply("Your party and PC are full!");
+
+				if (!player.inventory.has(ballType)) {
+					return this.errorReply(`You don't have any ${ITEMS_DATABASE[ballType]?.name || 'of that item'}!`);
+				}
+				if (player.party.length >= 6 && player.pc.size >= 100) {
+					return this.errorReply("Your party and PC are full!");
+				}
+
 				removeItemFromInventory(player, ballType, 1);
-				
+
+				// Use the more accurate formula from the now-active helper function
 				const catchChance = calculateCatchChance(battle.wildPokemon, ballType);
 
 				if (Math.random() < catchChance) {
+					// --- Success ---
 					activeBattles.delete(user.id);
 					const caughtPokemon = battle.wildPokemon;
 					const location = player.party.length < 6 ? "your party" : "PC";
-					if (player.party.length < 6) player.party.push(caughtPokemon);
-					else storePokemonInPC(player, caughtPokemon);
-					this.sendReply('|uhtmlchange|rpg-' + user.id + '|<div class="infobox"><h2>Gotcha!</h2><p><strong>' + caughtPokemon.species + '</strong> was caught!</p>' + generatePokemonInfoHTML(caughtPokemon) + '<p>' + caughtPokemon.species + ' has been sent to ' + location + '.</p><p><button name="send" value="/rpg wildpokemon" class="button">Find Another</button><button name="send" value="/rpg menu" class="button">Back to Menu</button></p></div>');
+					if (player.party.length < 6) {
+						player.party.push(caughtPokemon);
+					} else {
+						storePokemonInPC(player, caughtPokemon);
+					}
+					this.sendReply(`|uhtmlchange|rpg-${user.id}|<div class="infobox"><h2>Gotcha!</h2><p><strong>${caughtPokemon.species}</strong> was caught!</p>${generatePokemonInfoHTML(caughtPokemon)}<p>${caughtPokemon.species} has been sent to ${location}.</p><p><button name="send" value="/rpg wildpokemon" class="button">Find Another</button><button name="send" value="/rpg menu" class="button">Back to Menu</button></p></div>`);
 				} else {
-					const messageLog = ['Oh no! The wild ' + battle.wildPokemon.species + ' broke free!'];
+					// --- Failure ---
+					const messageLog = [`Oh no! The wild ${battle.wildPokemon.species} broke free!`];
+					// The wild Pokémon gets a free attack after breaking out
 					const wildMoveId = battle.wildPokemon.moves[Math.floor(Math.random() * battle.wildPokemon.moves.length)];
 					const wildResult = calculateDamage(battle.wildPokemon, battle.activePokemon, wildMoveId);
 					battle.activePokemon.hp = Math.max(0, battle.activePokemon.hp - wildResult.damage);
 					messageLog.push(wildResult.message);
-					this.sendReply('|uhtmlchange|rpg-' + user.id + '|' + generateBattleHTML(battle, messageLog));
+					if (wildResult.damage > 0) {
+						messageLog.push(`${battle.activePokemon.species} took ${wildResult.damage} damage!`);
+					}
+					
+					// Check if the player's Pokémon fainted from the attack
+					if (battle.activePokemon.hp === 0) {
+						if (!battle.player.party.some(p => p.hp > 0)) {
+							activeBattles.delete(user.id);
+							const moneyLost = Math.min(battle.player.money, 100);
+							battle.player.money -= moneyLost;
+							return this.sendReply(`|uhtmlchange|rpg-${user.id}|${generateDefeatHTML(moneyLost)}`);
+						} else {
+							return this.sendReply(`|uhtmlchange|rpg-${user.id}|${generateSwitchPokemonHTML(battle, "Choose a Pokemon to switch to.")}`);
+						}
+					}
+					this.sendReply(`|uhtmlchange|rpg-${user.id}|${generateBattleHTML(battle, messageLog)}`);
 				}
 			},
 			'run'(target, room, user) {
