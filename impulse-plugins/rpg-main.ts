@@ -1,9 +1,9 @@
 // Pokemon RPG Plugin for Pokemon Showdown
 
 //import { MANUAL_EVOLUTIONS } from './evolutions.ts';
-import { MANUAL_LEARNSETS } from './learnsets.ts';
-import { MANUAL_BASE_EXP } from './base-exp.ts';
-import { MANUAL_EV_YIELDS } from './ev-yields.ts';
+import { MANUAL_LEARNSETS } from '../dist/learnsets.js';
+import { MANUAL_BASE_EXP } from '../dist/base-exp.js';
+import { MANUAL_EV_YIELDS } from '../dist/ev-yields.js';
 
 // Interface for RPG Pokemon data
 interface RPGPokemon {
