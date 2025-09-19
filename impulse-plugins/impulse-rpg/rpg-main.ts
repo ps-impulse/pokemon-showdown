@@ -1004,22 +1004,39 @@ export const commands: ChatCommands = {
 				if (!battle) return this.errorReply("You are not in a battle.");
 				const moveId = target.trim();
 				if (!battle.activePokemon.moves.includes(moveId)) return this.errorReply("Invalid move.");
-
 				const messageLog: string[] = [];
 				const { activePokemon: playerPokemon, wildPokemon } = battle;
-
-				// 1. Determine Turn Order based on Speed
-				const playerGoesFirst = playerPokemon.spe >= wildPokemon.spe;
-				const turnOrder = playerGoesFirst ? [playerPokemon, wildPokemon] : [wildPokemon, playerPokemon];
-
+				// 1. Determine Turn Order (with Priority)
+				const playerAction = {
+					pokemon: playerPokemon,
+					move: Dex.moves.get(moveId),
+				};
+				const wildAction = {
+					pokemon: wildPokemon,
+					move: Dex.moves.get(wildPokemon.moves[Math.floor(Math.random() * wildPokemon.moves.length)]),
+				};
+				
+				let turnOrder;
+				// First, compare move priorities
+				if (playerAction.move.priority > wildAction.move.priority) {
+					turnOrder = [playerAction, wildAction];
+				} else if (wildAction.move.priority > playerAction.move.priority) {
+					turnOrder = [wildAction, playerAction];
+				} else {
+					// Priorities are equal, so check speed as a tiebreaker
+					if (playerAction.pokemon.spe >= wildAction.pokemon.spe) {
+						turnOrder = [playerAction, wildAction];
+					} else {
+						turnOrder = [wildAction, playerAction];
+					}
+				}
 				// 2. Process turns sequentially
-				for (const attacker of turnOrder) {
+				for (const turn of turnOrder) {
 					// If the current attacker fainted from the first hit, it doesn't get to move.
-					if (attacker.hp <= 0) continue;
-
+					if (turn.pokemon.hp <= 0) continue;
+					const attacker = turn.pokemon;
 					const defender = (attacker === playerPokemon) ? wildPokemon : playerPokemon;
-					const currentMoveId = (attacker === playerPokemon) ? moveId : wildPokemon.moves[Math.floor(Math.random() * wildPokemon.moves.length)];
-
+					const currentMoveId = turn.move.id;
 					// Process the attack
 					const attackResult = calculateDamage(attacker, defender, currentMoveId);
 					defender.hp = Math.max(0, defender.hp - attackResult.damage);
@@ -1028,7 +1045,6 @@ export const commands: ChatCommands = {
 						const defenderName = (defender === wildPokemon) ? `The wild ${wildPokemon.species}` : playerPokemon.species;
 						messageLog.push(`${defenderName} took ${attackResult.damage} damage!`);
 					}
-
 					// 3. Check for faints immediately after each attack
 					if (wildPokemon.hp === 0) {
 						activeBattles.delete(user.id);
@@ -1040,7 +1056,6 @@ export const commands: ChatCommands = {
 						}
 						return this.sendReply(`|uhtmlchange|rpg-${user.id}|${generateVictoryHTML(wildPokemon, expMessages, moneyGained)}`);
 					}
-
 					if (playerPokemon.hp === 0) {
 						if (!battle.player.party.some(p => p.hp > 0)) {
 							activeBattles.delete(user.id);
@@ -1052,7 +1067,6 @@ export const commands: ChatCommands = {
 						}
 					}
 				}
-
 				// 4. If no one fainted after both turns, update the battle state
 				this.sendReply(`|uhtmlchange|rpg-${user.id}|${generateBattleHTML(battle, messageLog)}`);
 			},
