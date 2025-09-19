@@ -3769,3 +3769,5 @@ export const MANUAL_EV_YIELDS: Record<string, Partial<Record<keyof Stats, number
         "def": 3
     }
 };
+
+Impulse.MANUAL_EV_YIELDS = MANUAL_EV_YIELDS;
