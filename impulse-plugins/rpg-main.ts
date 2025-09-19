@@ -88,6 +88,14 @@ const STARTER_POKEMON = {
 	grass: ['bulbasaur', 'chikorita', 'treecko', 'turtwig', 'snivy', 'chespin', 'rowlet', 'grookey', 'sprigatito'],
 };
 
+const MANUAL_BASE_EXP = Impulse.MANUAL_BASE_EXP;
+
+const MANUAL_EV_YIELDS = Impulse.MANUAL_EV_YIELDS;
+
+const MANUAL_LEARNSETS = Impulse.MANUAL_LEARNSETS;
+
+const MANUAL_EVOLUTIONS = Impulse.MANUAL_EVOLUTIONS;
+
 // Manual Base Experience Database
 /*const MANUAL_BASE_EXP: Record<string, number> = {
 	'rattata': 100, 'pidgey': 100, 'caterpie': 100, 'weedle': 100, 'zubat': 100, 'geodude': 100, 'magikarp': 100, 'psyduck': 100,
