@@ -89,7 +89,7 @@ const STARTER_POKEMON = {
 };
 
 // Manual Base Experience Database
-const MANUAL_BASE_EXP: Record<string, number> = {
+/*const MANUAL_BASE_EXP: Record<string, number> = {
 	'rattata': 100, 'pidgey': 100, 'caterpie': 100, 'weedle': 100, 'zubat': 100, 'geodude': 100, 'magikarp': 100, 'psyduck': 100,
 	'bulbasaur': 64, 'ivysaur': 142, 'venusaur': 236, 'charmander': 65, 'charmeleon': 142, 'charizard': 240, 'squirtle': 63, 'wartortle': 142, 'blastoise': 239,
 	'chikorita': 64, 'bayleef': 142, 'meganium': 236, 'cyndaquil': 65, 'quilava': 142, 'typhlosion': 240, 'totodile': 66, 'croconaw': 142, 'feraligatr': 239,
@@ -124,7 +124,7 @@ const MANUAL_EVOLUTIONS: Record<string, { evoLevel: number, evoTo: string }> = {
 	'charmander': { evoLevel: 16, evoTo: 'charmeleon' }, 'charmeleon': { evoLevel: 36, evoTo: 'charizard' },
 	'squirtle': { evoLevel: 16, evoTo: 'wartortle' }, 'wartortle': { evoLevel: 36, evoTo: 'blastoise' },
 };
-
+*/
 // Type Chart
 const TYPE_CHART: { [type: string]: { superEffective: string[], notVeryEffective: string[], noEffect: string[] } } = {
 	Normal: { superEffective: [], notVeryEffective: ['Rock', 'Steel'], noEffect: ['Ghost'] },
