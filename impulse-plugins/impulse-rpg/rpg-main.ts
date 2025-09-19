@@ -1,10 +1,5 @@
 // Pokemon RPG Plugin for Pokemon Showdown
 
-//import { MANUAL_EVOLUTIONS } from './evolutions.ts';
-//import { MANUAL_LEARNSETS } from '../dist/impulse-plugins/learnsets.js';
-//import { MANUAL_BASE_EXP } from '../dist/impulse-plugins/base-exp.js';
-//import { MANUAL_EV_YIELDS } from '../dist/impulse-plugins/ev-yields.js';
-
 // Interface for RPG Pokemon data
 interface RPGPokemon {
 	species: string;
@@ -97,16 +92,6 @@ const STARTER_POKEMON = {
 	grass: ['bulbasaur', 'chikorita', 'treecko', 'turtwig', 'snivy', 'chespin', 'rowlet', 'grookey', 'sprigatito'],
 };
 
-const MANUAL_CATCH_RATES = Impulse.MANUAL_CATCH_RATES;
-
-const MANUAL_BASE_EXP = Impulse.MANUAL_BASE_EXP;
-
-const MANUAL_EV_YIELDS = Impulse.MANUAL_EV_YIELDS;
-
-const MANUAL_LEARNSETS = Impulse.MANUAL_LEARNSETS;
-
-const MANUAL_EVOLUTIONS = Impulse.MANUAL_EVOLUTIONS;
-/*
 const MANUAL_CATCH_RATES: Record<string, number> = {
 	'rattata': 255, 'pidgey': 255, 'caterpie': 255, 'weedle': 255, 'zubat': 255, 'geodude': 255, 'magikarp': 255, 'psyduck': 190,
 };
@@ -144,7 +129,7 @@ const MANUAL_EVOLUTIONS: Record<string, { evoLevel: number, evoTo: string }> = {
 	'charmander': { evoLevel: 16, evoTo: 'charmeleon' }, 'charmeleon': { evoLevel: 36, evoTo: 'charizard' },
 	'squirtle': { evoLevel: 16, evoTo: 'wartortle' }, 'wartortle': { evoLevel: 36, evoTo: 'blastoise' },
 };
-*/
+
 // Type Chart
 const TYPE_CHART: { [type: string]: { superEffective: string[], notVeryEffective: string[], noEffect: string[] } } = {
 	Normal: { superEffective: [], notVeryEffective: ['Rock', 'Steel'], noEffect: ['Ghost'] },
@@ -335,7 +320,12 @@ function generateStarterSelectionHTML(type: string): string {
 	return html;
 }
 
-function generatePokemonInfoHTML(pokemon: RPGPokemon, showActions = false, status: Status | null = null): string {
+function generatePokemonInfoHTML(
+    pokemon: RPGPokemon,
+    showActions = false,
+    status: Status | null = null,
+    statStages: Record<keyof Omit<Stats, 'maxHp'>, number> | null = null
+): string {
 	const species = Dex.species.get(pokemon.species);
 	const hpPercentage = Math.max(0, Math.floor((pokemon.hp / pokemon.maxHp) * 100));
 	const hpBarColor = hpPercentage > 50 ? 'green' : hpPercentage > 25 ? 'orange' : 'red';
@@ -347,8 +337,19 @@ function generatePokemonInfoHTML(pokemon: RPGPokemon, showActions = false, statu
 	const statusColors: Record<Status, string> = { 'brn': '#F08030', 'par': '#F8D030', 'psn': '#A040A0', 'slp': '#9898E8', 'frz': '#98D8D8' };
 	const statusTag = status ? `<span style="background-color: ${statusColors[status]}; color: white; padding: 1px 4px; border-radius: 3px; font-size: 10px; text-transform: uppercase; vertical-align: middle; margin-left: 5px;">${status}</span>` : '';
 
+    let statStageTags = '';
+    if (statStages) {
+        for (const stat in statStages) {
+            const stage = statStages[stat as keyof typeof statStages];
+            if (stage > 0) {
+                statStageTags += ` <span style="color: green; font-size: 11px;">🔼${stat.toUpperCase()}</span>`;
+            } else if (stage < 0) {
+                statStageTags += ` <span style="color: red; font-size: 11px;">🔽${stat.toUpperCase()}</span>`;
+            }
+        }
+    }
 
-	let html = `<div style="border: 1px solid #ccc; padding: 10px; margin: 5px; border-radius: 5px;"><strong>${pokemon.species}</strong> (Level ${pokemon.level})${statusTag}<br><small>Type: ${species.types.join('/')}</small><br><div style="background: #f0f0f0; border-radius: 10px; padding: 2px; margin: 5px 0;"><div style="background: ${hpBarColor}; width: ${hpPercentage}%; height: 10px; border-radius: 8px;"></div></div>HP: ${pokemon.hp}/${pokemon.maxHp}<br><div style="background: #f0f0f0; border-radius: 10px; padding: 2px; margin: 5px 0;"><div style="background: #6c9be8; width: ${expPercentage}%; height: 8px; border-radius: 8px;"></div></div>EXP: ${pokemon.experience}/${pokemon.expToNextLevel}<br>Nature: ${pokemon.nature}<br>Ability: ${pokemon.ability || 'Unknown'}<br>Moves: ${pokemon.moves.slice(0, 4).join(', ') || 'None'}`;
+	let html = `<div style="border: 1px solid #ccc; padding: 10px; margin: 5px; border-radius: 5px;"><strong>${pokemon.species}</strong> (Level ${pokemon.level})${statusTag}${statStageTags}<br><small>Type: ${species.types.join('/')}</small><br><div style="background: #f0f0f0; border-radius: 10px; padding: 2px; margin: 5px 0;"><div style="background: ${hpBarColor}; width: ${hpPercentage}%; height: 10px; border-radius: 8px;"></div></div>HP: ${pokemon.hp}/${pokemon.maxHp}<br><div style="background: #f0f0f0; border-radius: 10px; padding: 2px; margin: 5px 0;"><div style="background: #6c9be8; width: ${expPercentage}%; height: 8px; border-radius: 8px;"></div></div>EXP: ${pokemon.experience}/${pokemon.expToNextLevel}<br>Nature: ${pokemon.nature}<br>Ability: ${pokemon.ability || 'Unknown'}<br>Moves: ${pokemon.moves.slice(0, 4).join(', ') || 'None'}`;
 	if (pokemon.item) {
 		html += `<br>Held Item: ${pokemon.item}`;
 	}
@@ -605,7 +606,7 @@ function checkEvolution(player: PlayerData, pokemon: RPGPokemon, room: ChatRoom,
 }
 
 function generateBattleHTML(battle: BattleState, messageLog: string[] = []): string {
-	return `<div class="infobox"><h2>Wild Battle!</h2><div style="display: flex; justify-content: space-around;"><div><h3>Your Pokemon</h3>${generatePokemonInfoHTML(battle.activePokemon, false, battle.playerStatus)}</div><div><h3>Wild Pokemon</h3>${generatePokemonInfoHTML(battle.wildPokemon, false, battle.wildStatus)}</div></div><hr /><div style="padding: 5px; margin: 10px 0; border: 1px solid #666; background: #f0f0f0; min-height: 50px;">${messageLog.join('<br>')}</div><p>What will ${battle.activePokemon.species} do?</p><div style="display: grid; grid-template-columns: repeat(2, 1fr); gap: 5px;">${battle.activePokemon.moves.map(moveId => `<button name="send" value="/rpg battleaction move ${moveId}" class="button">${Dex.moves.get(moveId).name}</button>`).join('')}</div><p style="margin-top: 15px;"><button name="send" value="/rpg battleaction catchmenu ${battle.wildPokemon.species}" class="button">⚽ Catch</button><button name="send" value="/rpg battleaction run" class="button">🏃 Run</button></p></div>`;
+	return `<div class="infobox"><h2>Wild Battle!</h2><div style="display: flex; justify-content: space-around;"><div><h3>Your Pokemon</h3>${generatePokemonInfoHTML(battle.activePokemon, false, battle.playerStatus, battle.playerStatStages)}</div><div><h3>Wild Pokemon</h3>${generatePokemonInfoHTML(battle.wildPokemon, false, battle.wildStatus, battle.wildStatStages)}</div></div><hr /><div style="padding: 5px; margin: 10px 0; border: 1px solid #666; background: #f0f0f0; min-height: 50px;">${messageLog.join('<br>')}</div><p>What will ${battle.activePokemon.species} do?</p><div style="display: grid; grid-template-columns: repeat(2, 1fr); gap: 5px;">${battle.activePokemon.moves.map(moveId => `<button name="send" value="/rpg battleaction move ${moveId}" class="button">${Dex.moves.get(moveId).name}</button>`).join('')}</div><p style="margin-top: 15px;"><button name="send" value="/rpg battleaction catchmenu ${battle.wildPokemon.species}" class="button">⚽ Catch</button><button name="send" value="/rpg battleaction run" class="button">🏃 Run</button></p></div>`;
 }
 
 function generateVictoryHTML(defeatedPokemon: RPGPokemon, expMessages: string[], moneyGained: number): string {
@@ -1095,30 +1096,41 @@ export const commands: ChatCommands = {
 					if (move.category === 'Status') {
 						messageLog.push(`${attacker.species} used ${move.name}!`);
 						const defenderCurrentStatus = (defender === playerPokemon) ? battle.playerStatus : battle.wildStatus;
-						let changed = false;
-
+						
 						if (move.boosts) {
-							let targetStages = attackerStages;
+							const targetPokemon = move.target === 'self' ? attacker : defender;
+							const targetStages = move.target === 'self' ? attackerStages : defenderStages;
+							let changed = false;
+							let raised = false;
+							let lowered = false;
+
 							for (const stat in move.boosts) {
 								const statName = stat as keyof Omit<Stats, 'maxHp'>;
 								const boostValue = move.boosts[statName]!;
-								if (targetStages[statName] < 6) {
-									targetStages[statName] = Math.min(6, targetStages[statName] + boostValue);
-									changed = true;
+								
+								if (boostValue > 0) {
+									if (targetStages[statName] < 6) {
+										targetStages[statName] = Math.min(6, targetStages[statName] + boostValue);
+										changed = true;
+										raised = true;
+									}
+								} else {
+									if (targetStages[statName] > -6) {
+										targetStages[statName] = Math.max(-6, targetStages[statName] + boostValue);
+										changed = true;
+										lowered = true;
+									}
 								}
 							}
-							if (changed) messageLog.push(`Its stats were raised!`); else messageLog.push(`But its stats won't go any higher!`);
-						} else if (move.secondary?.boosts) {
-							let targetStages = defenderStages;
-							for (const stat in move.secondary.boosts) {
-								const statName = stat as keyof Omit<Stats, 'maxHp'>;
-								const boostValue = move.secondary.boosts[statName]!;
-								if (targetStages[statName] > -6) {
-									targetStages[statName] = Math.max(-6, targetStages[statName] + boostValue);
-									changed = true;
-								}
+
+							if (!changed) {
+								messageLog.push(`But it failed!`);
+							} else if (raised && !lowered) {
+								messageLog.push(`${targetPokemon.species}'s stats were raised!`);
+							} else if (lowered && !raised) {
+								messageLog.push(`${targetPokemon.species}'s stats were lowered!`);
 							}
-							if (changed) messageLog.push(`${defender.species}'s stats were lowered!`); else messageLog.push(`But its stats won't go any lower!`);
+
 						} else if (move.status) {
 							if (defenderCurrentStatus) {
 								messageLog.push(`But it failed!`);
