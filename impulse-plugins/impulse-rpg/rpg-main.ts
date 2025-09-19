@@ -2,6 +2,7 @@
 
 import { MANUAL_EVOLUTIONS } from './evolutions.ts';
 import { MANUAL_LEARNSETS } from './learnsets.ts';
+import { MANUAL_BASE_EXP } from './base-exp.ts';
 
 // Interface for RPG Pokemon data
 interface RPGPokemon {
