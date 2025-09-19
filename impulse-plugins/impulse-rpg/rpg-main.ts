@@ -1,5 +1,7 @@
-// Pokemon RPG Plugin for Pokemon Showdown - Enhanced with Inventory & PC System
-// File: server/chat-plugins/rpg.ts
+// Pokemon RPG Plugin for Pokemon Showdown
+
+import { MANUAL_EVOLUTIONS } from './evolutions.ts';
+
 
 // Interface for RPG Pokemon data
 interface RPGPokemon {
