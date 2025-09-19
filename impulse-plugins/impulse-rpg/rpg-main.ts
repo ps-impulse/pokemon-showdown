@@ -92,6 +92,16 @@ const STARTER_POKEMON = {
 	grass: ['bulbasaur', 'chikorita', 'treecko', 'turtwig', 'snivy', 'chespin', 'rowlet', 'grookey', 'sprigatito'],
 };
 
+const MANUAL_CATCH_RATES = Impulse.MANUAL_CATCH_RATES;
+
+const MANUAL_BASE_EXP = Impulse.MANUAL_BASE_EXP;
+
+const MANUAL_EV_YIELDS = Impulse.MANUAL_EV_YIELDS;
+
+const MANUAL_LEARNSETS = Impulse.MANUAL_LEARNSETS;
+
+const MANUAL_EVOLUTIONS = Impulse.MANUAL_EVOLUTIONS;
+/*
 const MANUAL_CATCH_RATES: Record<string, number> = {
 	'rattata': 255, 'pidgey': 255, 'caterpie': 255, 'weedle': 255, 'zubat': 255, 'geodude': 255, 'magikarp': 255, 'psyduck': 190,
 };
@@ -124,7 +134,7 @@ const MANUAL_EVOLUTIONS: Record<string, { evoLevel: number, evoTo: string }> = {
 	'charmander': { evoLevel: 16, evoTo: 'charmeleon' }, 'charmeleon': { evoLevel: 36, evoTo: 'charizard' },
 	'squirtle': { evoLevel: 16, evoTo: 'wartortle' }, 'wartortle': { evoLevel: 36, evoTo: 'blastoise' },
 };
-
+*/
 // Type Chart
 const TYPE_CHART: { [type: string]: { superEffective: string[], notVeryEffective: string[], noEffect: string[] } } = {
 	Normal: { superEffective: [], notVeryEffective: ['Rock', 'Steel'], noEffect: ['Ghost'] },
