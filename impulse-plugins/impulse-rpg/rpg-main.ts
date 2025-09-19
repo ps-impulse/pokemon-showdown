@@ -1074,7 +1074,6 @@ export const commands: ChatCommands = {
         const move = turn.move;
         const attackerStatus = (attacker === playerPokemon) ? battle.playerStatus : battle.wildStatus;
         
-        // This part correctly handles the EFFECTS of being frozen, asleep, or paralyzed
         if (attackerStatus === 'frz') {
             if (Math.random() < 0.20) {
                 if (attacker === playerPokemon) battle.playerStatus = null; else battle.wildStatus = null;
@@ -1109,12 +1108,10 @@ export const commands: ChatCommands = {
             const defenderCurrentStatus = (defender === playerPokemon) ? battle.playerStatus : battle.wildStatus;
             
             if (move.boosts) {
-                // ... logic for stat changes
                 const targetPokemon = move.target === 'self' ? attacker : defender;
                 const targetStages = move.target === 'self' ? attackerStages : defenderStages;
-                let changed = false;
-                let raised = false;
-                let lowered = false;
+                let changed = false, raised = false, lowered = false;
+
                 for (const stat in move.boosts) {
                     const statName = stat as keyof Omit<Stats, 'maxHp'>;
                     const boostValue = move.boosts[statName]!;
@@ -1134,17 +1131,20 @@ export const commands: ChatCommands = {
                 }
                 if (!changed) {
                     messageLog.push(`But it failed!`);
-                } else if (raised && !lowered) {
+                } else if (raised) {
                     messageLog.push(`${targetPokemon.species}'s stats were raised!`);
-                } else if (lowered && !raised) {
+                } else if (lowered) {
                     messageLog.push(`${targetPokemon.species}'s stats were lowered!`);
                 }
             } else if (move.status) {
-                // FIX HERE: This block now correctly applies ALL status types from moves like Thunder Wave
                 if (defenderCurrentStatus) {
                     messageLog.push(`But it failed!`);
                 } else {
-                    const status = move.status as Status;
+                    let status = move.status;
+                    if (status === 'tox') status = 'psn';
+
+                    const statusName = {psn: 'poisoned', brn: 'burned', slp: 'put to sleep', par: 'paralyzed', frz: 'frozen'}[status as Status];
+
                     if (status === 'slp') {
                         const sleepTurns = 1 + Math.floor(Math.random() * 3);
                         if (defender === playerPokemon) {
@@ -1157,11 +1157,11 @@ export const commands: ChatCommands = {
                         messageLog.push(`${defender.species} fell asleep!`);
                     } else {
                         if (defender === playerPokemon) {
-                            battle.playerStatus = status;
+                            battle.playerStatus = status as Status;
                         } else {
-                            battle.wildStatus = status;
+                            battle.wildStatus = status as Status;
                         }
-                        messageLog.push(`${defender.species} was afflicted with ${status}!`);
+                        messageLog.push(`${defender.species} was ${statusName}!`);
                     }
                 }
             } else {
@@ -1175,11 +1175,14 @@ export const commands: ChatCommands = {
                 const defenderName = (defender === wildPokemon) ? `The wild ${wildPokemon.species}` : playerPokemon.species;
                 messageLog.push(`${defenderName} took ${attackResult.damage} damage!`);
 
-                // FIX HERE: This block now correctly applies ALL status types from secondary effects
                 if (move.secondary && move.secondary.status && Math.random() * 100 < move.secondary.chance) {
                     const defenderCurrentStatus = (defender === playerPokemon) ? battle.playerStatus : battle.wildStatus;
                     if (!defenderCurrentStatus) {
-                        const status = move.secondary.status as Status;
+                        let status = move.secondary.status;
+                        if (status === 'tox') status = 'psn';
+
+                        const statusName = {psn: 'poisoned', brn: 'burned', slp: 'put to sleep', par: 'paralyzed', frz: 'frozen'}[status as Status];
+
                         if (status === 'slp') {
                             const sleepTurns = 1 + Math.floor(Math.random() * 3);
                             if (defender === playerPokemon) {
@@ -1192,11 +1195,11 @@ export const commands: ChatCommands = {
                             messageLog.push(`${defender.species} fell asleep!`);
                         } else {
                             if (defender === playerPokemon) {
-                                battle.playerStatus = status;
+                                battle.playerStatus = status as Status;
                             } else {
-                                battle.wildStatus = status;
+                                battle.wildStatus = status as Status;
                             }
-                            messageLog.push(`${defender.species} was afflicted with ${status}!`);
+                            messageLog.push(`${defender.species} was ${statusName}!`);
                         }
                     }
                 }
@@ -1209,6 +1212,7 @@ export const commands: ChatCommands = {
     if (wildPokemon.hp > 0 && playerPokemon.hp > 0) {
         const endTurnOrder = [playerPokemon, wildPokemon];
         for (const pokemon of endTurnOrder) {
+            if (pokemon.hp <= 0) continue;
             const status = (pokemon === playerPokemon) ? battle.playerStatus : battle.wildStatus;
             if (status === 'brn' || status === 'psn') {
                 const damage = Math.max(1, Math.floor(pokemon.maxHp / 16));
