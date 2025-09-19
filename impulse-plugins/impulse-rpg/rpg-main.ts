@@ -88,12 +88,9 @@ const STARTER_POKEMON = {
 	grass: ['bulbasaur', 'chikorita', 'treecko', 'turtwig', 'snivy', 'chespin', 'rowlet', 'grookey', 'sprigatito'],
 };
 
-const MANUAL_CATCH_RATES: Record<string, number> = {
-    'rattata': 255, 'pidgey': 255, 'caterpie': 255, 'weedle': 255, 'zubat': 255, 
-    'geodude': 120, 'magikarp': 255, 'psyduck': 190,
-};
-
 const MANUAL_BASE_EXP = Impulse.MANUAL_BASE_EXP;
+
+const MANUAL_CATCH_RATES = Impulse.MANUAL_CATCH_RATES;
 
 const MANUAL_EV_YIELDS = Impulse.MANUAL_EV_YIELDS;
 
