@@ -1406,13 +1406,17 @@ export const commands: ChatCommands = {
 			'run'(target, room, user) {
 				const battle = activeBattles.get(user.id);
 				if (!battle) return this.errorReply("You are not in a battle.");
+                
+                // This part, which checks for trapping abilities, is correct.
                 if (AbilityHandler.trapCheck(battle.activePokemon, battle.wildPokemon)) {
                     this.sendReply(`|uhtmlchange|rpg-${user.id}|${generateBattleHTML(battle, ["You can't escape!"])}`);
                     return;
                 }
+
 				saveBattleStatus(battle);
 				activeBattles.delete(user.id);
-				this.sendReply(`|uhtmlchange|rpg-${user.id}|<div class="infobox"><h2>Got away safely!</h2></div>`);
+                // CORRECTED: Restored the original success message with action buttons.
+				this.sendReply(`|uhtmlchange|rpg-${user.id}|<div class="infobox"><h2>Got away safely!</h2><p>You ran away from the wild Pokemon.</p><p><button name="send" value="/rpg wildpokemon" class="button">Find Another</button><button name="send" value="/rpg explore" class="button">Continue Exploring</button></p></div>`);
 			},
             'catchmenu'(target, room, user) {
                 const battle = activeBattles.get(user.id);
