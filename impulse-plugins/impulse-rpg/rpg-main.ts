@@ -1529,6 +1529,7 @@ export const commands: ChatCommands = {
 				if (!battle) return this.errorReply("You are not in a battle.");
 				this.sendReply(`|uhtmlchange|rpg-${user.id}|${generateSwitchMenuHTML(battle)}`);
 			},
+
 			playerswitch(target, room, user) {
 				const battle = activeBattles.get(user.id);
 				if (!battle) return this.errorReply("You are not in a battle.");
@@ -1540,6 +1541,11 @@ export const commands: ChatCommands = {
 				if (!nextPokemon) return this.errorReply("Invalid Pokemon or it has fainted.");
 				if (nextPokemon.id === battle.activePokemon.id) return this.errorReply("This Pokemon is already in battle.");
 				
+				// --- FIX START ---
+				// Store a reference to the Pokémon that is being switched out *before* we change it.
+				const outgoingPokemon = battle.activePokemon;
+				// --- FIX END ---
+				
 				// This is a strategic switch, so it uses the player's turn.
 				saveBattleStatus(battle); // Save the state of the outgoing Pokémon
 
@@ -1548,7 +1554,10 @@ export const commands: ChatCommands = {
 				battle.playerStatStages = { atk: 0, def: 0, spa: 0, spd: 0, spe: 0 };
 				battle.turn++;
 				
-				const messageLog = [`${player.name} withdrew ${oldPokemonInParty.species} and sent out ${nextPokemon.species}!`];
+				// --- FIX START ---
+				// Use the new 'outgoingPokemon' variable for the message log.
+				const messageLog = [`${player.name} withdrew ${outgoingPokemon.species} and sent out ${nextPokemon.species}!`];
+				// --- FIX END ---
 
 				// The opponent gets to attack.
 				const wildMoveData = battle.wildPokemon.moves[Math.floor(Math.random() * battle.wildPokemon.moves.length)];
