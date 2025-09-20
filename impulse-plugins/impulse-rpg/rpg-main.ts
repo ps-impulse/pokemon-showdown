@@ -1551,8 +1551,10 @@ export const commands: ChatCommands = {
 			help() { this.sendReply("Battle commands: /rpg battleaction [move|switch|catchmenu|run]"); }
 		},
 		explore(target, room, user) {
-			if (activeBattles.has(user.id)) return this.errorReply("You cannot explore during a battle.");
-			this.sendReply(`|uhtmlchange|rpg-${user.id}|<div class="infobox"><h2>Explore</h2><p><button name="send" value="/rpg wildpokemon" class="button">🛤️ Tall Grass</button><button name="send" value="/rpg shop" class="button">🏪 Poke Mart</button><button name="send" value="/rpg heal" class="button">🏥 Pokemon Center</button></p></div>`);
+			if (activeBattles.has(user.id)) {
+				return this.errorReply("You cannot explore during a battle.");
+			}
+			this.sendReply(`|uhtmlchange|rpg-${user.id}|<div class="infobox"><h2>Explore</h2><p>Choose where to explore:</p><p><button name="send" value="/rpg wildpokemon" class="button">🛤️ Tall Grass</button><button name="send" value="/rpg shop" class="button">🏪 Poke Mart</button><button name="send" value="/rpg heal" class="button">🏥 Pokemon Center</button></p><p><button name="send" value="/rpg menu" class="button">Back to Menu</button></p></div>`);
 		},
 		heal(target, room, user) {
 			if (activeBattles.has(user.id)) return this.errorReply("You cannot heal your Pokemon during a battle.");
