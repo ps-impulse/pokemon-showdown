@@ -118,9 +118,10 @@ function setupGlobals() {
 	global.toID = Dex.toID;
 
 	/* Impulse Global For RPG */
-	
+
+	const { dex } = require('../sim/dex');
 	global.Impulse = {};
-	global.Impulse.Dex = Dex('gen9nationaldex');
+	global.Impulse.Dex = dex('gen9nationaldex');
 
 	/* Impulse Global Ends */
 
