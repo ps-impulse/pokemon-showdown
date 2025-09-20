@@ -243,17 +243,28 @@ function createPokemon(speciesId: string, level: number = 5): RPGPokemon {
 	const ivs = { hp: Math.floor(Math.random() * 32), atk: Math.floor(Math.random() * 32), def: Math.floor(Math.random() * 32), spa: Math.floor(Math.random() * 32), spd: Math.floor(Math.random() * 32), spe: Math.floor(Math.random() * 32) };
 	const evs = { hp: 0, atk: 0, def: 0, spa: 0, spd: 0, spe: 0 };
 	const stats = calculateStats(species, level, randomNature, ivs, evs);
-	let availableMoves: string[] = ['tackle', 'growl']; // Default moves
+	let availableMoves: string[] = ['tackle', 'growl'];
 	const manualLearnset = MANUAL_LEARNSETS[toID(speciesId)];
 
 	if (manualLearnset?.levelup) {
-		const learnedMoves = manualLearnset.levelup
-			.filter(entry => entry.level <= level)
-			.map(entry => toID(entry.move));
-		if (learnedMoves.length > 0) {
-            // Use a Set to get unique moves and then take the last 4
-			availableMoves = [...new Set(learnedMoves)].slice(-4);
-        }
+		const learnedMoves: string[] = [];
+		for (const learnableMove of manualLearnset.levelup) {
+			if (learnableMove.level <= level) {
+				learnedMoves.push(toID(learnableMove.move));
+			}
+		}
+		if (learnedMoves.length > 0) availableMoves = [...new Set(learnedMoves)].slice(-4);
+	} else {
+		// Fallback for when manual learnset is not defined
+		try {
+			const learnset = species.learnset;
+			if (learnset) {
+				const moves = Object.keys(learnset).filter(moveId => { // @ts-ignore
+					return learnset[moveId].some((learnMethod: string) => learnMethod.startsWith('8L' + level) || learnMethod.startsWith('8L' + (level - 1)) || learnMethod.startsWith('8L' + (level - 2)) || learnMethod.startsWith('8L' + (level - 3)) || learnMethod.startsWith('8L' + (level - 4)) || learnMethod.startsWith('8L' + (level - 5)));
+				});
+				if (moves.length > 0) availableMoves = moves.slice(-4);
+			}
+		} catch (e) { /* fallback */ }
 	}
 
 	const movesWithPP = availableMoves.map(moveId => {
@@ -561,37 +572,33 @@ function levelUp(pokemon: RPGPokemon): string[] {
 }
 
 function handleLearningMoves(player: PlayerData, pokemon: RPGPokemon): { messages: string[] } {
-    const messages: string[] = [];
-    const speciesId = toID(pokemon.species);
-    const manualLearnset = MANUAL_LEARNSETS[speciesId];
+	const messages: string[] = [];
+	const speciesId = toID(pokemon.species);
+	const manualLearnset = MANUAL_LEARNSETS[speciesId];
+	if (!manualLearnset?.levelup) return { messages };
 
-    if (!manualLearnset?.levelup) return { messages };
+	const movesLearnedAtThisLevel = manualLearnset.levelup
+		.filter(learnable => learnable.level === pokemon.level)
+		.map(learnable => learnable.move);
 
-    // Find all moves that should be learned at the current level
-    const movesToLearn = manualLearnset.levelup
-        .filter(entry => entry.level === pokemon.level)
-        .map(entry => toID(entry.move));
+	if (!movesLearnedAtThisLevel || movesLearnedAtThisLevel.length === 0) return { messages };
 
-    if (movesToLearn.length === 0) return { messages };
-
-    for (const newMoveId of movesToLearn) {
-        // Check if the Pokémon already knows the move
-        if (pokemon.moves.some(m => m.id === newMoveId)) continue; 
-
-        if (pokemon.moves.length < 4) {
-            const moveData = Dex.moves.get(newMoveId);
-            pokemon.moves.push({ id: newMoveId, pp: moveData.pp || 5 });
-            messages.push(`**${pokemon.species} learned ${moveData.name}!**`);
-        } else {
-            // Add to the queue if moves are full
-            if (!player.pendingMoveLearnQueue) {
-                player.pendingMoveLearnQueue = { pokemonId: pokemon.id, moveIds: [] };
-            }
-            player.pendingMoveLearnQueue.moveIds.push(newMoveId);
-        }
-    }
-
-    return { messages };
+	const movesToQueue: string[] = [];
+	for (const newMoveId of movesLearnedAtThisLevel) {
+		const moveId = toID(newMoveId);
+		if (pokemon.moves.some(m => m.id === moveId)) continue;
+		if (pokemon.moves.length < 4) {
+			const moveData = Dex.moves.get(moveId);
+			pokemon.moves.push({ id: moveId, pp: moveData.pp || 5 });
+			messages.push(`**${pokemon.species} learned ${moveData.name}!**`);
+		} else {
+			movesToQueue.push(moveId);
+		}
+	}
+	if (movesToQueue.length > 0) {
+		player.pendingMoveLearnQueue = { pokemonId: pokemon.id, moveIds: movesToQueue };
+	}
+	return { messages };
 }
 
 function gainEffortValues(pokemon: RPGPokemon, defeatedPokemon: RPGPokemon) {
@@ -854,43 +861,33 @@ export const commands: ChatCommands = {
 				this.sendReply(`|uhtmlchange|rpg-${user.id}|${resultHTML}`);
 			}
 		},
-		
+
 		learneggmove(target, room, user) {
 			const player = getPlayerData(user.id);
 			const [pokemonId, newMoveId] = target.split(' ');
 			if (!pokemonId || !newMoveId) {
-				return this.errorReply("Invalid command parameters. Use /rpg learneggmove [pokemon id] [move id]");
+				return this.errorReply("Invalid command parameters.");
 			}
 			const pokemon = player.party.find(p => p.id === pokemonId);
 			if (!pokemon) {
 				return this.errorReply("Pokemon not found in your party.");
 			}
 			const speciesId = toID(pokemon.species);
-			// Correctly check the 'egg' array in the new learnset structure
 			const eggMoves = MANUAL_LEARNSETS[speciesId]?.egg || [];
 			if (!eggMoves.includes(newMoveId)) {
 				return this.errorReply("This is not a valid Egg Move for this Pokemon.");
 			}
-			const moveData = Dex.moves.get(newMoveId);
-			if (!moveData.exists) {
-				return this.errorReply(`The move '${newMoveId}' does not exist.`);
-			}
-			
-			if (pokemon.moves.some(m => m.id === newMoveId)) {
-				return this.errorReply(`${pokemon.species} already knows ${moveData.name}.`);
-			}
-			
 			if (pokemon.moves.length < 4) {
-				pokemon.moves.push({ id: newMoveId, pp: moveData.pp || 5 });
-				const resultHTML = `<div class="infobox"><h2>Move Learned!</h2><p><strong>${pokemon.species}</strong> learned <strong>${moveData.name}</strong>!</p>${generatePokemonInfoHTML(pokemon)}<p><button name="send" value="/rpg party" class="button">Back to Party</button></p></div>`;
+				const newMoveData = Dex.moves.get(newMoveId);
+				pokemon.moves.push({ id: newMoveId, pp: newMoveData.pp || 5 });
+				const resultHTML = `<div class="infobox"><h2>Move Learned!</h2><p><strong>${pokemon.species}</strong> learned <strong>${newMoveData.name}</strong>!</p>${generatePokemonInfoHTML(pokemon)}<p><button name="send" value="/rpg party" class="button">Back to Party</button></p></div>`;
 				this.sendReply(`|uhtmlchange|rpg-${user.id}|${resultHTML}`);
 			} else {
-				// Queue the egg move to be learned
 				player.pendingMoveLearnQueue = { pokemonId: pokemon.id, moveIds: [newMoveId] };
 				this.sendReply(`|uhtmlchange|rpg-${user.id}|${generateMoveLearnHTML(player)}`);
 			}
 		},
-		
+
 		summary(target, room, user) {
 			if (activeBattles.has(user.id)) {
 				return this.errorReply("You cannot view a summary during battle.");
@@ -1007,7 +1004,7 @@ export const commands: ChatCommands = {
 				const targetPokemon = player.party.find(p => p.id === pokemonId);
 				if (!targetPokemon) return this.errorReply("Pokemon not found in your party.");
 				const speciesId = toID(targetPokemon.species);
-				const allEggMoves = MANUAL_LEARNSETS[speciesId]?.[0] || [];
+				const allEggMoves = MANUAL_LEARNSETS[speciesId]?.egg || [];
 				const learnableEggMoves = allEggMoves.filter(moveId => !targetPokemon.moves.some(m => m.id === moveId));
 
 				if (learnableEggMoves.length === 0) {
