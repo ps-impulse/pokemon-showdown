@@ -607,25 +607,34 @@ function handleLearningMoves(player: PlayerData, pokemon: RPGPokemon): { message
 
 	const movesLearnedAtThisLevel = manualLearnset.levelup
 		.filter(learnable => learnable.level === pokemon.level)
-		.map(learnable => learnable.move);
+		.map(learnable => toID(learnable.move))
+		.filter(moveId => !pokemon.moves.some(m => m.id === moveId)); // Filter out moves already known
 
-	if (!movesLearnedAtThisLevel || movesLearnedAtThisLevel.length === 0) return { messages };
+	if (movesLearnedAtThisLevel.length === 0) return { messages };
 
+	const openMoveSlots = 4 - pokemon.moves.length;
 	const movesToQueue: string[] = [];
-	for (const newMoveId of movesLearnedAtThisLevel) {
-		const moveId = toID(newMoveId);
-		if (pokemon.moves.some(m => m.id === moveId)) continue;
-		if (pokemon.moves.length < 4) {
+	
+	if (openMoveSlots > 0) {
+		// Automatically learn moves that can fit
+		const movesToAutoLearn = movesLearnedAtThisLevel.slice(0, openMoveSlots);
+		for (const moveId of movesToAutoLearn) {
 			const moveData = Dex.moves.get(moveId);
 			pokemon.moves.push({ id: moveId, pp: moveData.pp || 5 });
 			messages.push(`**${pokemon.species} learned ${moveData.name}!**`);
-		} else {
-			movesToQueue.push(moveId);
 		}
 	}
+
+	// Queue any remaining moves
+	if (movesLearnedAtThisLevel.length > openMoveSlots) {
+		const remainingMoves = movesLearnedAtThisLevel.slice(openMoveSlots);
+		movesToQueue.push(...remainingMoves);
+	}
+
 	if (movesToQueue.length > 0) {
 		player.pendingMoveLearnQueue = { pokemonId: pokemon.id, moveIds: movesToQueue };
 	}
+	
 	return { messages };
 }
 
