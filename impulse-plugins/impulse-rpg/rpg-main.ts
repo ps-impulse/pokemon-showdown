@@ -109,6 +109,36 @@ const MANUAL_CATCH_RATES = Impulse.MANUAL_CATCH_RATES;
 const MANUAL_BASE_EXP = Impulse.MANUAL_BASE_EXP;
 
 const MANUAL_EV_YIELDS = Impulse.MANUAL_EV_YIELDS;
+// @ts-ignore
+/*const MANUAL_LEARNSETS = {
+	"grookey": {
+    "levelup": [
+      { "level": 1, "move": "scratch" },
+      { "level": 1, "move": "growl" },
+      { "level": 5, "move": "branchpoke" },
+      { "level": 6, "move": "taunt" },
+      { "level": 6, "move": "razorleaf" },
+      { "level": 17, "move": "screech" },
+      { "level": 20, "move": "knockoff" },
+      { "level": 24, "move": "slam" },
+      { "level": 28, "move": "uproar" },
+      { "level": 32, "move": "woodhammer" },
+      { "level": 36, "move": "endeavor" }
+    ],
+    "egg": [
+      "fakeout",
+      "growth",
+      "hammerarm",
+      "leechseed",
+      "strength",
+      "worryseed"
+    ],
+    "tm": [
+      // Add TM moves here if you implement them
+    ],
+    "event": []
+  },
+};*/
 
 const MANUAL_LEARNSETS = Impulse.MANUAL_LEARNSETS;
 
@@ -636,17 +666,11 @@ function gainEffortValues(pokemon: RPGPokemon, defeatedPokemon: RPGPokemon) {
     pokemon.spd = newStats.spd;
     pokemon.spe = newStats.spe;
 }
-	
-	function gainExperience(player: PlayerData, pokemon: RPGPokemon, defeatedPokemon: RPGPokemon, room: ChatRoom, user: User): { messages: string[], leveledUp: boolean } {
+
+function gainExperience(player: PlayerData, pokemon: RPGPokemon, defeatedPokemon: RPGPokemon, room: ChatRoom, user: User): { messages: string[], leveledUp: boolean } {
 	const defeatedSpeciesId = toID(defeatedPokemon.species);
-
-	// Reverted to use the manual base experience lookup.
 	const baseExp = MANUAL_BASE_EXP[defeatedSpeciesId];
-
-	if (!baseExp) {
-		return { messages: ['No experience was gained.'], leveledUp: false };
-	}
-
+	if (!baseExp) return { messages: ['No experience was gained.'], leveledUp: false };
 	const expGained = Math.floor((baseExp * defeatedPokemon.level) / 7);
 	if (expGained <= 0) return { messages: [`${pokemon.species} gained no Experience Points.`], leveledUp: false };
     gainEffortValues(pokemon, defeatedPokemon);
@@ -665,7 +689,7 @@ function gainEffortValues(pokemon: RPGPokemon, defeatedPokemon: RPGPokemon) {
 		messages.push(...newMoveMessages);
 	}
 	return { messages, leveledUp };
-	}
+}
 
 function checkEvolution(player: PlayerData, pokemon: RPGPokemon, room: ChatRoom, user: User): string | null {
 	const speciesId = toID(pokemon.species);
