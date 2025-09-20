@@ -105,6 +105,8 @@ function setupGlobals() {
 
 	/* Impulse Globals */
 
+	global.Impulse = {};
+
 	// JsonDB
 	const db = new JsonDB("./impulse-db");
 
@@ -116,14 +118,6 @@ function setupGlobals() {
 	const { Dex } = require('../sim/dex');
 	global.Dex = Dex;
 	global.toID = Dex.toID;
-
-	/* Impulse Global For RPG */
-
-	const { dex } = require('../sim/dex');
-	global.Impulse = {};
-	global.Impulse.Dex = dex('gen9nationaldex');
-
-	/* Impulse Global Ends */
 
 	const { Teams } = require('../sim/teams');
 	global.Teams = Teams;
