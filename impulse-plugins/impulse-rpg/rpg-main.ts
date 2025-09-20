@@ -219,7 +219,7 @@ function generateUniqueId(): string {
 
 function getPlayerData(userid: string): PlayerData {
 	if (!playerData.has(userid)) {
-		const newPlayer: PlayerData = { id: userid, name: userid, level: 1, experience: 0, badges: 0, party: [], location: 'Starter Town', money: 500, inventory: new Map(), pc: new Map() };
+		const newPlayer: PlayerData = { id: userid, name: userid, level: 1, experience: 0, badges: 0, party: [], location: 'Starter Town', money: 10000, inventory: new Map(), pc: new Map() };
 		addItemToInventory(newPlayer, 'pokeball', 5);
 		addItemToInventory(newPlayer, 'potion', 3);
 		playerData.set(userid, newPlayer);
