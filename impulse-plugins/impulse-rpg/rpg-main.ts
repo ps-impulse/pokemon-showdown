@@ -1040,7 +1040,8 @@ export const commands: ChatCommands = {
 			}
 			const [pokemon] = player.party.splice(pokemonIndex, 1);
 			storePokemonInPC(player, pokemon);
-			this.sendReply(`|uhtmlchange|rpg-${user.id}|<div class="infobox"><h2>Pokemon Deposited</h2><p><strong>${pokemon.species}</strong> has been deposited into the PC!</p><p><button name="send" value="/rpg pc" class="button">View PC</button><button name="send" value="/rpg party" class="button">Back to Party</button></p></div>`);
+			// CORRECTED: Added "Back to Menu" button for consistency
+			this.sendReply(`|uhtmlchange|rpg-${user.id}|<div class="infobox"><h2>Pokemon Deposited</h2><p><strong>${pokemon.species}</strong> has been deposited into the PC!</p><p><button name="send" value="/rpg pc" class="button">View PC</button><button name="send" value="/rpg party" class="button">Back to Party</button><button name="send" value="/rpg menu" class="button">Back to Menu</button></p></div>`);
 		},
 
 		withdrawpc(target, room, user) {
