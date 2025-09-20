@@ -110,7 +110,7 @@ const MANUAL_BASE_EXP = Impulse.MANUAL_BASE_EXP;
 
 const MANUAL_EV_YIELDS = Impulse.MANUAL_EV_YIELDS;
 // @ts-ignore
-const MANUAL_LEARNSETS = {
+/*const MANUAL_LEARNSETS = {
 	"grookey": {
     "levelup": [
       { "level": 1, "move": "scratch" },
@@ -138,7 +138,9 @@ const MANUAL_LEARNSETS = {
     ],
     "event": []
   },
-};
+};*/
+
+const MANUAL_LEARNSETS = Impulse.MANUAL_LEARNSETS;
 
 const MANUAL_EVOLUTIONS = Impulse.MANUAL_EVOLUTIONS;
 
