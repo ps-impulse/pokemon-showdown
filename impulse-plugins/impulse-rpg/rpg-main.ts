@@ -1465,15 +1465,22 @@ export const commands: ChatCommands = {
 				if (!battle) return this.errorReply("You are not in a battle.");
 				battle.turn++;
 
-				// FIX: Use the Pokémon object directly from the battle state for consistency.
 				const playerPokemon = battle.activePokemon;
 				const player = getPlayerData(battle.playerId);
 
 				const moveId = toID(target);
-				// This check now uses the same object that generated the UI, preventing the "Invalid move" error.
+
+				// --- DEBUGGING BLOCK START ---
+				// This code will check if the move is valid. If not, it will tell us why.
 				if (!playerPokemon.moves.some(m => m.id === moveId)) {
+					const movesetForDebug = playerPokemon.moves.map(m => `'${m.id}' (PP: ${m.pp})`).join(', ');
+					const debugMessage = `|c|~|/raw <strong>DEBUG INFO:</strong><br />- <strong>Action:</strong> Move validation failed.<br />- <strong>Searching for Move ID:</strong> '${moveId}'<br />- <strong>Pokémon's Known Moves:</strong> [${movesetForDebug}]`;
+					
+					// This sends the debug message directly to you in the chat.
+					this.sendReply(debugMessage);
 					return this.errorReply("Invalid move.");
 				}
+				// --- DEBUGGING BLOCK END ---
 
 				const messageLog: string[] = [];
 				const { wildPokemon } = battle;
