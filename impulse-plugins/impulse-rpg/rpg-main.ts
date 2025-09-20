@@ -1547,18 +1547,24 @@ export const commands: ChatCommands = {
 					this.sendReply(`|uhtmlchange|rpg-${user.id}|${generateBattleHTML(battle, ["You returned to the battle."])}`);
 				}
 			},
+			
 			'': 'help',
 			help() { this.sendReply("Battle commands: /rpg battleaction [move|switch|catchmenu|run]"); }
 		},
+		
 		explore(target, room, user) {
 			if (activeBattles.has(user.id)) {
 				return this.errorReply("You cannot explore during a battle.");
 			}
 			this.sendReply(`|uhtmlchange|rpg-${user.id}|<div class="infobox"><h2>Explore</h2><p>Choose where to explore:</p><p><button name="send" value="/rpg wildpokemon" class="button">🛤️ Tall Grass</button><button name="send" value="/rpg shop" class="button">🏪 Poke Mart</button><button name="send" value="/rpg heal" class="button">🏥 Pokemon Center</button></p><p><button name="send" value="/rpg menu" class="button">Back to Menu</button></p></div>`);
 		},
+
 		heal(target, room, user) {
-			if (activeBattles.has(user.id)) return this.errorReply("You cannot heal your Pokemon during a battle.");
+			if (activeBattles.has(user.id)) {
+				return this.errorReply("You cannot heal your Pokemon during a battle.");
+			}
 			const player = getPlayerData(user.id);
+			
 			for (const pokemon of player.party) {
 				pokemon.hp = pokemon.maxHp;
 				pokemon.status = null;
@@ -1567,8 +1573,12 @@ export const commands: ChatCommands = {
 					move.pp = moveData.pp || 5;
 				}
 			}
-			this.sendReply(`|uhtmlchange|rpg-${user.id}|<div class="infobox"><h2>Pokemon Healed!</h2><p>Your Pokémon have been restored to full health.</p></div>`);
+		
+			// CORRECTED: Restored the full Pokémon Center message and navigational buttons
+			const healHTML = `<div class="infobox"><h2>Pokemon Healed!</h2><p>Welcome to the Pokémon Center. We've restored your Pokémon to full health.</p><p>We hope to see you again!</p><p><button name="send" value="/rpg party" class="button">View Party</button><button name="send" value="/rpg explore" class="button">Explore</button></p></div>`;
+			this.sendReply(`|uhtmlchange|rpg-${user.id}|${healHTML}`);
 		},
+		
 		help() { return this.parse('/help rpg'); },
 		'': 'help',
 	},
