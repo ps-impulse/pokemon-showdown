@@ -120,7 +120,7 @@ function setupGlobals() {
 	/* Impulse Global For RPG */
 	
 	global.Impulse = {};
-	global.Impulse.Dex = new Dex('gen9nationaldex');
+	global.Impulse.Dex = Dex('gen9nationaldex');
 
 	/* Impulse Global Ends */
 
