@@ -115,8 +115,9 @@ const MANUAL_LEARNSETS = {
     "levelup": [
       { "level": 1, "move": "scratch" },
       { "level": 1, "move": "growl" },
-      { "level": 6, "move": "branchpoke" },
-      { "level": 8, "move": "taunt" },
+      { "level": 5, "move": "branchpoke" },
+      { "level": 6, "move": "taunt" },
+		{ "level": 6, "move": "branchpoke" },
       { "level": 12, "move": "razorleaf" },
       { "level": 17, "move": "screech" },
       { "level": 20, "move": "knockoff" },
