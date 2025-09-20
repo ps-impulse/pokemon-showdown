@@ -112,6 +112,7 @@ const STARTER_POKEMON = {
 };
 
 // Manual data
+const AbilityHandler = Impulse.AbilityHandler;
 const MANUAL_CATCH_RATES = Impulse.MANUAL_CATCH_RATES;
 const MANUAL_BASE_EXP = Impulse.MANUAL_BASE_EXP;
 const MANUAL_EV_YIELDS = Impulse.MANUAL_EV_YIELDS;
