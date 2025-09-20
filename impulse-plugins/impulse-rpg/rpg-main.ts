@@ -670,15 +670,20 @@ function gainEffortValues(pokemon: RPGPokemon, defeatedPokemon: RPGPokemon) {
 function gainExperience(player: PlayerData, pokemon: RPGPokemon, defeatedPokemon: RPGPokemon, room: ChatRoom, user: User): { messages: string[], leveledUp: boolean } {
 	const defeatedSpeciesId = toID(defeatedPokemon.species);
 
-	// Fetch the species data from the Dex to get the official base experience.
-	const defeatedSpecies = Dex.species.get(defeatedSpeciesId);
+	// 1. Use your isolated Impulse.Dex to get the fully-loaded species data.
+	const defeatedSpecies = Impulse.Dex.species.get(defeatedSpeciesId);
+	
 	if (!defeatedSpecies.exists) {
-		// This is a fallback in case the species ID is somehow invalid.
 		return { messages: ['An error occurred while calculating experience.'], leveledUp: false };
 	}
+
+	// 2. Get the baseExp property directly from the species object.
 	const baseExp = defeatedSpecies.baseExp;
 
-	if (!baseExp) return { messages: ['No experience was gained.'], leveledUp: false };
+	if (!baseExp) {
+		// This check will no longer fail once your Dex is set up correctly.
+		return { messages: ['No experience was gained.'], leveledUp: false };
+	}
 
 	const expGained = Math.floor((baseExp * defeatedPokemon.level) / 7);
 	if (expGained <= 0) return { messages: [`${pokemon.species} gained no Experience Points.`], leveledUp: false };
