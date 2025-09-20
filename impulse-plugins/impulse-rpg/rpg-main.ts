@@ -109,8 +109,36 @@ const MANUAL_CATCH_RATES = Impulse.MANUAL_CATCH_RATES;
 const MANUAL_BASE_EXP = Impulse.MANUAL_BASE_EXP;
 
 const MANUAL_EV_YIELDS = Impulse.MANUAL_EV_YIELDS;
-
-const MANUAL_LEARNSETS = Impulse.MANUAL_LEARNSETS;
+// @ts-ignore
+const MANUAL_LEARNSETS = {
+	"grookey": {
+    "levelup": [
+      { "level": 1, "move": "scratch" },
+      { "level": 1, "move": "growl" },
+      { "level": 6, "move": "branchpoke" },
+      { "level": 8, "move": "taunt" },
+      { "level": 12, "move": "razorleaf" },
+      { "level": 17, "move": "screech" },
+      { "level": 20, "move": "knockoff" },
+      { "level": 24, "move": "slam" },
+      { "level": 28, "move": "uproar" },
+      { "level": 32, "move": "woodhammer" },
+      { "level": 36, "move": "endeavor" }
+    ],
+    "egg": [
+      "fakeout",
+      "growth",
+      "hammerarm",
+      "leechseed",
+      "strength",
+      "worryseed"
+    ],
+    "tm": [
+      // Add TM moves here if you implement them
+    ],
+    "event": []
+  },
+};
 
 const MANUAL_EVOLUTIONS = Impulse.MANUAL_EVOLUTIONS;
 
