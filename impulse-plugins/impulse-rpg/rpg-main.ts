@@ -106,39 +106,9 @@ const STARTER_POKEMON = {
 
 const MANUAL_CATCH_RATES = Impulse.MANUAL_CATCH_RATES;
 
-//const MANUAL_BASE_EXP = Impulse.MANUAL_BASE_EXP;
+const MANUAL_BASE_EXP = Impulse.MANUAL_BASE_EXP;
 
 const MANUAL_EV_YIELDS = Impulse.MANUAL_EV_YIELDS;
-// @ts-ignore
-/*const MANUAL_LEARNSETS = {
-	"grookey": {
-    "levelup": [
-      { "level": 1, "move": "scratch" },
-      { "level": 1, "move": "growl" },
-      { "level": 5, "move": "branchpoke" },
-      { "level": 6, "move": "taunt" },
-      { "level": 6, "move": "razorleaf" },
-      { "level": 17, "move": "screech" },
-      { "level": 20, "move": "knockoff" },
-      { "level": 24, "move": "slam" },
-      { "level": 28, "move": "uproar" },
-      { "level": 32, "move": "woodhammer" },
-      { "level": 36, "move": "endeavor" }
-    ],
-    "egg": [
-      "fakeout",
-      "growth",
-      "hammerarm",
-      "leechseed",
-      "strength",
-      "worryseed"
-    ],
-    "tm": [
-      // Add TM moves here if you implement them
-    ],
-    "event": []
-  },
-};*/
 
 const MANUAL_LEARNSETS = Impulse.MANUAL_LEARNSETS;
 
@@ -666,22 +636,14 @@ function gainEffortValues(pokemon: RPGPokemon, defeatedPokemon: RPGPokemon) {
     pokemon.spd = newStats.spd;
     pokemon.spe = newStats.spe;
 }
-
-function gainExperience(player: PlayerData, pokemon: RPGPokemon, defeatedPokemon: RPGPokemon, room: ChatRoom, user: User): { messages: string[], leveledUp: boolean } {
+	
+	function gainExperience(player: PlayerData, pokemon: RPGPokemon, defeatedPokemon: RPGPokemon, room: ChatRoom, user: User): { messages: string[], leveledUp: boolean } {
 	const defeatedSpeciesId = toID(defeatedPokemon.species);
 
-	// 1. Use your isolated Impulse.Dex to get the fully-loaded species data.
-	const defeatedSpecies = Impulse.Dex.species.get(defeatedSpeciesId);
-	
-	if (!defeatedSpecies.exists) {
-		return { messages: ['An error occurred while calculating experience.'], leveledUp: false };
-	}
-
-	// 2. Get the baseExp property directly from the species object.
-	const baseExp = defeatedSpecies.baseExp;
+	// Reverted to use the manual base experience lookup.
+	const baseExp = MANUAL_BASE_EXP[defeatedSpeciesId];
 
 	if (!baseExp) {
-		// This check will no longer fail once your Dex is set up correctly.
 		return { messages: ['No experience was gained.'], leveledUp: false };
 	}
 
@@ -703,7 +665,7 @@ function gainExperience(player: PlayerData, pokemon: RPGPokemon, defeatedPokemon
 		messages.push(...newMoveMessages);
 	}
 	return { messages, leveledUp };
-}
+	}
 
 function checkEvolution(player: PlayerData, pokemon: RPGPokemon, room: ChatRoom, user: User): string | null {
 	const speciesId = toID(pokemon.species);
