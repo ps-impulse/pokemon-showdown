@@ -280,6 +280,7 @@ function createPokemon(speciesId: string, level: number = 5): RPGPokemon {
 		const learnedMoves: string[] = [];
 		for (const learnableMove of manualLearnset.levelup) {
 			if (learnableMove.level <= level) {
+				// FIX: Ensure the move name from the data file is converted to a proper ID.
 				learnedMoves.push(toID(learnableMove.move));
 			}
 		}
@@ -917,19 +918,25 @@ export const commands: ChatCommands = {
 
 		learneggmove(target, room, user) {
 			const player = getPlayerData(user.id);
-			const [pokemonId, newMoveId] = target.split(' ');
-			if (!pokemonId || !newMoveId) {
+			const [pokemonId, rawMoveId] = target.split(' ');
+			if (!pokemonId || !rawMoveId) {
 				return this.errorReply("Invalid command parameters.");
 			}
+
 			const pokemon = player.party.find(p => p.id === pokemonId);
 			if (!pokemon) {
 				return this.errorReply("Pokemon not found in your party.");
 			}
 			const speciesId = toID(pokemon.species);
+			// The rawMoveId comes from the button and might have hyphens.
 			const eggMoves = MANUAL_LEARNSETS[speciesId]?.egg || [];
-			if (!eggMoves.includes(newMoveId)) {
+			if (!eggMoves.includes(rawMoveId)) {
 				return this.errorReply("This is not a valid Egg Move for this Pokemon.");
 			}
+
+			// FIX: Sanitize the move ID before adding it to the Pokémon's moveset.
+			const newMoveId = toID(rawMoveId);
+
 			if (pokemon.moves.length < 4) {
 				const newMoveData = Dex.moves.get(newMoveId);
 				pokemon.moves.push({ id: newMoveId, pp: newMoveData.pp || 5 });
@@ -1198,268 +1205,6 @@ export const commands: ChatCommands = {
 		},
 
 		battleaction: {
-			/*'move'(target, room, user) {
-				const battle = activeBattles.get(user.id);
-				if (!battle) return this.errorReply("You are not in a battle.");
-				battle.turn++;
-
-				// --- CHANGE 2 START ---
-				// Use the Pokémon object directly from the battle state.
-				const playerPokemon = battle.activePokemon;
-				// We get the player object for other reasons, like gaining EXP later.
-				const player = getPlayerData(battle.playerId);
-		
-				const moveId = toID(target);
-				// This check now uses the same object that generated the UI, so it will always pass for a valid move.
-				if (!playerPokemon.moves.some(m => m.id === moveId)) return this.errorReply("Invalid move.");
-				// --- CHANGE 2 END ---
-
-				const messageLog: string[] = [];
-				const { wildPokemon } = battle;
-				
-				const playerMove = playerPokemon.moves.find(m => m.id === moveId)!;
-				const wildMove = wildPokemon.moves[Math.floor(Math.random() * wildPokemon.moves.length)];
-
-				const playerAction = { pokemon: playerPokemon, move: Dex.moves.get(playerMove.id) };
-				const wildAction = { pokemon: wildPokemon, move: Dex.moves.get(wildMove.id) };
-
-				let playerSpe = playerAction.pokemon.spe;
-				if (battle.playerStatus === 'par') playerSpe = Math.floor(playerSpe / 2);
-				let wildSpe = wildAction.pokemon.spe;
-				if (battle.wildStatus === 'par') wildSpe = Math.floor(wildSpe / 2);
-
-				let turnOrder;
-				if (playerAction.move.priority > wildAction.move.priority) {
-					turnOrder = [playerAction, wildAction];
-				} else if (wildAction.move.priority > playerAction.move.priority) {
-					turnOrder = [wildAction, playerAction];
-				} else {
-					turnOrder = (playerSpe >= wildSpe) ? [playerAction, wildAction] : [wildAction, playerAction];
-				}
-
-				for (const turn of turnOrder) {
-					const attacker = turn.pokemon;
-					if (attacker.hp <= 0) continue;
-
-					const defender = (attacker === playerPokemon) ? wildPokemon : playerPokemon;
-					const move = turn.move;
-					const attackerStatus = (attacker === playerPokemon) ? battle.playerStatus : battle.wildStatus;
-					
-					const moveObject = attacker.moves.find(m => m.id === move.id);
-					if (!moveObject || moveObject.pp <= 0) {
-						messageLog.push(`${attacker.species} tried to use ${move.name}, but it has no PP left!`);
-						continue;
-					}
-			
-					moveObject.pp--;
-			
-					const moveAccuracy = move.accuracy;
-					if (moveAccuracy !== true && (Math.random() * 100) > moveAccuracy) {
-						messageLog.push(`${attacker.species}'s ${move.name} missed!`);
-						continue;
-					}
-
-					if (attackerStatus === 'frz') {
-						if (Math.random() < 0.20) {
-							if (attacker === playerPokemon) battle.playerStatus = null; else battle.wildStatus = null;
-							messageLog.push(`${attacker.species} thawed out!`);
-						} else {
-							messageLog.push(`${attacker.species} is frozen solid!`);
-							continue;
-						}
-					}
-					if (attackerStatus === 'slp') {
-						const sleepCounter = (attacker === playerPokemon) ? battle.playerSleepCounter : battle.wildSleepCounter;
-						if (attacker === playerPokemon) battle.playerSleepCounter--; else battle.wildSleepCounter--;
-						if (sleepCounter > 0) {
-							messageLog.push(`${attacker.species} is fast asleep.`);
-							continue;
-						} else {
-							if (attacker === playerPokemon) battle.playerStatus = null; else battle.wildStatus = null;
-							messageLog.push(`${attacker.species} woke up!`);
-						}
-					}
-					if (attackerStatus === 'par' && Math.random() < 0.25) {
-						messageLog.push(`${attacker.species} is fully paralyzed!`);
-						continue;
-					}
-					
-					const attackerStages = (attacker === playerPokemon) ? battle.playerStatStages : battle.wildStatStages;
-					const defenderStages = (defender === playerPokemon) ? battle.playerStatStages : battle.wildStatStages;
-
-					if (move.category === 'Status') {
-						messageLog.push(`${attacker.species} used ${move.name}!`);
-						const defenderCurrentStatus = (defender === playerPokemon) ? battle.playerStatus : battle.wildStatus;
-						
-						if (move.boosts) {
-							const targetPokemon = move.target === 'self' ? attacker : defender;
-							const targetStages = move.target === 'self' ? attackerStages : defenderStages;
-							let changed = false, raised = false, lowered = false;
-							for (const stat in move.boosts) {
-								const statName = stat as keyof Omit<Stats, 'maxHp'>;
-								const boostValue = move.boosts[statName]!;
-								if (boostValue > 0) {
-									if (targetStages[statName] < 6) {
-										targetStages[statName] = Math.min(6, targetStages[statName] + boostValue);
-										changed = true;
-										raised = true;
-									}
-								} else {
-									if (targetStages[statName] > -6) {
-										targetStages[statName] = Math.max(-6, targetStages[statName] + boostValue);
-										changed = true;
-										lowered = true;
-									}
-								}
-							}
-							if (!changed) messageLog.push(`But it failed!`);
-							else if (raised) messageLog.push(`${targetPokemon.species}'s stats were raised!`);
-							else if (lowered) messageLog.push(`${targetPokemon.species}'s stats were lowered!`);
-						} else if (move.status) {
-							if (defenderCurrentStatus) {
-								messageLog.push(`But it failed!`);
-							} else {
-								let status = move.status;
-								if (status === 'tox') status = 'psn';
-								const statusName = {psn: 'poisoned', brn: 'burned', slp: 'put to sleep', par: 'paralyzed', frz: 'frozen'}[status as Status];
-								if (status === 'slp') {
-									const sleepTurns = 1 + Math.floor(Math.random() * 3);
-									if (defender === playerPokemon) {
-										battle.playerStatus = 'slp';
-										battle.playerSleepCounter = sleepTurns;
-									} else {
-										battle.wildStatus = 'slp';
-										battle.wildSleepCounter = sleepTurns;
-									}
-									messageLog.push(`${defender.species} fell asleep!`);
-								} else {
-									if (defender === playerPokemon) battle.playerStatus = status as Status;
-									else battle.wildStatus = status as Status;
-									messageLog.push(`${defender.species} was ${statusName}!`);
-								}
-							}
-						} else {
-							messageLog.push(`But it had no effect!`);
-						}
-					} else {
-						const attackResult = calculateDamage(attacker, defender, move.id, attackerStages, defenderStages, attackerStatus);
-						defender.hp = Math.max(0, defender.hp - attackResult.damage);
-						messageLog.push(attackResult.message);
-						if (attackResult.damage > 0) {
-							const defenderName = (defender === wildPokemon) ? `The wild ${wildPokemon.species}` : playerPokemon.species;
-							messageLog.push(`${defenderName} took ${attackResult.damage} damage!`);
-
-							const defenderStatus = (defender === playerPokemon) ? battle.playerStatus : battle.wildStatus;
-							if (defenderStatus === 'frz' && move.category !== 'Status' && move.type === 'Fire') {
-								if (defender === playerPokemon) battle.playerStatus = null;
-								else battle.wildStatus = null;
-								messageLog.push(`${defender.species} was thawed out by the attack!`);
-							}
-
-							if (move.secondary && move.secondary.status && Math.random() * 100 < move.secondary.chance) {
-								const defenderCurrentStatus = (defender === playerPokemon) ? battle.playerStatus : battle.wildStatus;
-								if (!defenderCurrentStatus) {
-									let status = move.secondary.status;
-									if (status === 'tox') status = 'psn';
-									const statusName = {psn: 'poisoned', brn: 'burned', slp: 'put to sleep', par: 'paralyzed', frz: 'frozen'}[status as Status];
-									if (status === 'slp') {
-										const sleepTurns = 1 + Math.floor(Math.random() * 3);
-										if (defender === playerPokemon) {
-											battle.playerStatus = 'slp';
-											battle.playerSleepCounter = sleepTurns;
-										} else {
-											battle.wildStatus = 'slp';
-											battle.wildSleepCounter = sleepTurns;
-										}
-										messageLog.push(`${defender.species} fell asleep!`);
-									} else {
-										if (defender === playerPokemon) battle.playerStatus = status as Status;
-										else battle.wildStatus = status as Status;
-										messageLog.push(`${defender.species} was ${statusName}!`);
-									}
-								}
-							}
-						}
-					}
-					
-					if (wildPokemon.hp <= 0 || playerPokemon.hp <= 0) break;
-				}
-
-				if (wildPokemon.hp > 0 && playerPokemon.hp > 0) {
-					const endTurnOrder = [playerPokemon, wildPokemon];
-					for (const pokemon of endTurnOrder) {
-						if (pokemon.hp <= 0) continue;
-						const status = (pokemon === playerPokemon) ? battle.playerStatus : battle.wildStatus;
-						if (status === 'brn' || status === 'psn') {
-							const divisor = (status === 'psn') ? 8 : 16;
-							const damage = Math.max(1, Math.floor(pokemon.maxHp / divisor));
-							pokemon.hp = Math.max(0, pokemon.hp - damage);
-							const statusName = status === 'brn' ? 'burn' : 'poison';
-							messageLog.push(`${pokemon.species} was hurt by its ${statusName}!`);
-						}
-					}
-				}
-
-				if (wildPokemon.hp <= 0) {
-					saveBattleStatus(battle);
-					activeBattles.delete(user.id);
-					const moneyGained = Math.floor(wildPokemon.level * 10);
-					player.money += moneyGained;
-					const { messages: expMessages } = gainExperience(player, playerPokemon, wildPokemon, room, user);
-					if (player.pendingMoveLearnQueue?.moveIds.length) {
-						return this.sendReply(`|uhtmlchange|rpg-${user.id}|${generateMoveLearnHTML(player)}`);
-					}
-					return this.sendReply(`|uhtmlchange|rpg-${user.id}|${generateVictoryHTML(wildPokemon, expMessages, moneyGained)}`);
-				}
-
-				if (playerPokemon.hp <= 0) {
-					if (!player.party.some(p => p.hp > 0)) {
-						saveBattleStatus(battle);
-						activeBattles.delete(user.id);
-						const moneyLost = Math.min(player.money, 100);
-						player.money -= moneyLost;
-						return this.sendReply(`|uhtmlchange|rpg-${user.id}|${generateDefeatHTML(moneyLost)}`);
-					} else {
-						return this.sendReply(`|uhtmlchange|rpg-${user.id}|${generateSwitchPokemonHTML(battle, "Choose a Pokemon to switch to.")}`);
-					}
-				}
-				
-				this.sendReply(`|uhtmlchange|rpg-${user.id}|${generateBattleHTML(battle, messageLog)}`);
-			},
-			'switch'(target, room, user) {
-				const battle = activeBattles.get(user.id);
-				if (!battle) return this.errorReply("You are not in a battle.");
-				const player = getPlayerData(battle.playerId);
-
-				const pokemonId = target.trim();
-				const nextPokemon = player.party.find(p => p.id === pokemonId && p.hp > 0);
-				if (!nextPokemon) return this.errorReply("Invalid Pokemon or it has fainted.");
-				if (nextPokemon.id === battle.activePokemon.id) return this.errorReply("This Pokemon is already in battle.");
-				
-				// Save status of the pokemon switching out
-				const oldPokemonInParty = player.party.find(p => p.id === battle.activePokemon.id);
-				if (oldPokemonInParty) {
-					if (battle.playerStatus === 'slp' || battle.playerStatus === 'frz') {
-						oldPokemonInParty.status = null;
-					} else {
-						oldPokemonInParty.status = battle.playerStatus;
-					}
-				}
-
-				battle.activePokemon = nextPokemon;
-				battle.playerStatus = nextPokemon.status; // Load status of incoming pokemon
-				battle.playerStatStages = { atk: 0, def: 0, spa: 0, spd: 0, spe: 0 };
-				battle.turn++;
-				
-				const messageLog = [`Go, ${nextPokemon.species}!`];
-				const wildMoveData = battle.wildPokemon.moves[Math.floor(Math.random() * battle.wildPokemon.moves.length)];
-				const wildResult = calculateDamage(battle.wildPokemon, battle.activePokemon, wildMoveData.id, battle.wildStatStages, battle.playerStatStages, battle.wildStatus);
-				battle.activePokemon.hp = Math.max(0, battle.activePokemon.hp - wildResult.damage);
-				messageLog.push(wildResult.message);
-				if (wildResult.damage > 0) messageLog.push(`${battle.activePokemon.species} took ${wildResult.damage} damage!`);
-				this.sendReply(`|uhtmlchange|rpg-${user.id}|${generateBattleHTML(battle, messageLog)}`);
-			},*/
-
 			'move'(target, room, user) {
 				const battle = activeBattles.get(user.id);
 				if (!battle) return this.errorReply("You are not in a battle.");
@@ -1470,17 +1215,10 @@ export const commands: ChatCommands = {
 
 				const moveId = toID(target);
 
-				// --- DEBUGGING BLOCK START ---
-				// This code will check if the move is valid. If not, it will tell us why.
+				// Final validation check
 				if (!playerPokemon.moves.some(m => m.id === moveId)) {
-					const movesetForDebug = playerPokemon.moves.map(m => `'${m.id}' (PP: ${m.pp})`).join(', ');
-					const debugMessage = `|c|~|/raw <strong>DEBUG INFO:</strong><br />- <strong>Action:</strong> Move validation failed.<br />- <strong>Searching for Move ID:</strong> '${moveId}'<br />- <strong>Pokémon's Known Moves:</strong> [${movesetForDebug}]`;
-					
-					// This sends the debug message directly to you in the chat.
-					this.sendReply(debugMessage);
 					return this.errorReply("Invalid move.");
 				}
-				// --- DEBUGGING BLOCK END ---
 
 				const messageLog: string[] = [];
 				const { wildPokemon } = battle;
