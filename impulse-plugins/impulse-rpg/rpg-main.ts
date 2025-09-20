@@ -148,6 +148,13 @@ const NATURES: Record<string, { plus: keyof Stats, minus: keyof Stats } | null> 
 const NATURE_LIST = Object.keys(NATURES);
 type Stats = Omit<RPGPokemon, 'species' | 'level' | 'experience' | 'moves' | 'id' | 'expToNextLevel' | 'hp' | 'ability' | 'item' | 'nature' | 'growthRate' | 'ivs' | 'evs' | 'status' | 'types' | 'isTransformed' | 'formBroken'>;
 
+function isGrounded(pokemon: RPGPokemon): boolean {
+    // A simplified check. A full implementation would check for Magnet Rise, Telekinesis, etc.
+    if (pokemon.types.includes('Flying') || pokemon.ability === 'levitate') {
+        return false;
+    }
+    return true;
+}
 
 function getCustomEffectiveness(moveType: string, defenderTypes: string[], attackerAbility?: string): number {
 	let effectiveness = 1;
@@ -497,7 +504,7 @@ function calculateDamage(
     move: any,
     battle: BattleState
 ): { damage: number, message: string, isCritical: boolean } {
-    const { playerStatStages, wildStatStages } = battle;
+    const { playerStatStages, wildStatStages, weather, terrain } = battle;
     const attackerStages = attacker.id === battle.activePokemon.id ? playerStatStages : wildStatStages;
     const defenderStages = defender.id === battle.activePokemon.id ? playerStatStages : wildStatStages;
     const attackerStatus = attacker.id === battle.activePokemon.id ? battle.playerStatus : battle.wildStatus;
@@ -507,9 +514,30 @@ function calculateDamage(
 		return { damage: 0, message: `${attacker.species} used ${move.name}, but it had no effect!`, isCritical: false };
 	}
 
+    // --- BASE POWER MODIFICATIONS ---
     let basePower = move.basePower;
     basePower = AbilityHandler.getBasePower(basePower, attacker, defender, move);
+    
+    // Terrain-based power modifications
+    if (isGrounded(attacker)) {
+        if (terrain === 'Grassy' && move.type === 'Grass') basePower *= 1.3;
+        if (terrain === 'Electric' && move.type === 'Electric') basePower *= 1.3;
+    }
+    if (isGrounded(defender)) {
+        if (terrain === 'Grassy' && move.id === 'earthquake') basePower *= 0.5; // Example for moves affected by terrain
+    }
 
+    // Weather-based power modifications
+    if (weather === 'Sun') {
+        if (move.type === 'Fire') basePower *= 1.5;
+        if (move.type === 'Water') basePower *= 0.5;
+    }
+    if (weather === 'Rain') {
+        if (move.type === 'Water') basePower *= 1.5;
+        if (move.type === 'Fire') basePower *= 0.5;
+    }
+
+	// --- STAT CALCULATION ---
 	let attackStatRaw = move.category === 'Special' ? attacker.spa : attacker.atk;
     attackStatRaw = AbilityHandler.modifyAtk(attacker, attackStatRaw, battle);
 
@@ -528,6 +556,7 @@ function calculateDamage(
 		finalAttackStat = Math.floor(finalAttackStat / 2);
 	}
 	
+    // --- DAMAGE MULTIPLIERS ---
 	const isCritical = Math.random() < (1 / 24);
 	const criticalMultiplier = isCritical ? 1.5 : 1;
 	
@@ -554,27 +583,6 @@ function calculateDamage(
         damage = 0;
     }
 	return { damage, message, isCritical };
-}
-
-function levelUp(pokemon: RPGPokemon): string[] {
-	const levelUpMessages: string[] = [];
-	pokemon.level++;
-	levelUpMessages.push(`**${pokemon.species} grew to Level ${pokemon.level}!**`);
-	const oldStats = { ...pokemon };
-	const species = Dex.species.get(pokemon.species);
-	const newStats = calculateStats(species, pokemon.level, pokemon.nature, pokemon.ivs, pokemon.evs);
-	pokemon.maxHp = newStats.maxHp;
-	pokemon.atk = newStats.atk;
-	pokemon.def = newStats.def;
-	pokemon.spa = newStats.spa;
-	pokemon.spd = newStats.spd;
-	pokemon.spe = newStats.spe;
-	pokemon.hp = pokemon.maxHp;
-	levelUpMessages.push(`Max HP: ${oldStats.maxHp} -> ${pokemon.maxHp}`);
-	levelUpMessages.push(`Attack: ${oldStats.atk} -> ${pokemon.atk}`);
-	levelUpMessages.push(`Defense: ${oldStats.def} -> ${pokemon.def}`);
-	pokemon.expToNextLevel = calculateTotalExpForLevel(pokemon.growthRate, pokemon.level + 1);
-	return levelUpMessages;
 }
 
 function handleLearningMoves(player: PlayerData, pokemon: RPGPokemon): { messages: string[] } {
@@ -1199,7 +1207,6 @@ export const commands: ChatCommands = {
 				const playerPokemon = battle.activePokemon;
 				const wildPokemon = battle.wildPokemon;
 				const messageLog: string[] = [];
-
 				const moveId = toID(target);
 				if (!playerPokemon.moves.some(m => m.id === moveId)) return this.errorReply("Invalid move.");
 
@@ -1233,10 +1240,15 @@ export const commands: ChatCommands = {
                     let move = { ...turn.move };
                     const defender = (attacker === playerPokemon) ? wildPokemon : playerPokemon;
 
+                    // Terrain check for priority moves
+                    if (battle.terrain === 'Psychic' && isGrounded(defender) && move.priority > 0) {
+                        messageLog.push(`The Psychic Terrain blocked ${attacker.species}'s ${move.name}!`);
+                        continue;
+                    }
+
                     const beforeMoveResult = AbilityHandler.onBeforeMove(attacker, move, battle);
                     if (beforeMoveResult?.message) messageLog.push(beforeMoveResult.message);
                     AbilityHandler.onModifyMove(move, attacker);
-
                     battle.isAbilitySuppressed = ['moldbreaker', 'teravolt', 'turboblaze'].includes(toID(attacker.ability));
 
                     if (!battle.isAbilitySuppressed) {
@@ -1290,13 +1302,11 @@ export const commands: ChatCommands = {
 						messageLog.push(`${attacker.species} used ${move.name}!`);
 						if (move.boosts) {
 							const targetPokemon = move.target === 'self' ? attacker : defender;
-							
                             const boostPrevented = AbilityHandler.onTryBoost(move.boosts, targetPokemon, attacker);
                             if (boostPrevented.prevented) {
                                 messageLog.push(boostPrevented.message!);
                                 continue;
                             }
-                            
 							const targetStages = targetPokemon.id === playerPokemon.id ? battle.playerStatStages : battle.wildStatStages;
                             let changed = false, raised = false, lowered = false;
 							for (const stat in move.boosts) {
@@ -1320,6 +1330,15 @@ export const commands: ChatCommands = {
 							else if (raised) messageLog.push(`${targetPokemon.species}'s stats were raised!`);
 							else if (lowered) messageLog.push(`${targetPokemon.species}'s stats were lowered!`);
 						} else if (move.status) {
+							// Terrain check for status moves
+                            if (battle.terrain === 'Misty' && isGrounded(defender)) {
+                                messageLog.push(`The Misty Terrain prevented the status!`);
+                                continue;
+                            }
+                            if (battle.terrain === 'Electric' && isGrounded(defender) && move.status === 'slp') {
+                                messageLog.push(`The Electric Terrain prevented sleep!`);
+                                continue;
+                            }
 							const defenderCurrentStatus = (defender === playerPokemon) ? battle.playerStatus : battle.wildStatus;
 							if (defenderCurrentStatus) {
 								messageLog.push(`But it failed!`);
@@ -1370,6 +1389,7 @@ export const commands: ChatCommands = {
 
                 battle.isAbilitySuppressed = false;
 				if (wildPokemon.hp > 0 && playerPokemon.hp > 0) {
+					// Status damage (burn, poison)
 					const endTurnOrder = [playerPokemon, wildPokemon];
 					for (const pokemon of endTurnOrder) {
 						if (pokemon.hp <= 0) continue;
@@ -1380,8 +1400,37 @@ export const commands: ChatCommands = {
 							messageLog.push(`${pokemon.species} was hurt by its status!`);
 						}
 					}
+                    // Residual abilities
                     messageLog.push(...AbilityHandler.handleOnResidual(playerPokemon, battle));
                     messageLog.push(...AbilityHandler.handleOnResidual(wildPokemon, battle));
+                    
+                    // General Terrain/Weather effects
+                    if (battle.terrain === 'Grassy') {
+                        for (const pokemon of endTurnOrder) {
+                            if (pokemon.hp > 0 && pokemon.hp < pokemon.maxHp && isGrounded(pokemon)) {
+                                pokemon.hp = Math.min(pokemon.maxHp, pokemon.hp + Math.floor(pokemon.maxHp / 16));
+                                messageLog.push(`${pokemon.species} healed a little from the Grassy Terrain!`);
+                            }
+                        }
+                    }
+                    if (battle.weather === 'Sand') {
+                        for (const pokemon of endTurnOrder) {
+                            const isImmune = pokemon.types.includes('Rock') || pokemon.types.includes('Ground') || pokemon.types.includes('Steel') || ['sandveil', 'sandrush', 'sandforce', 'overcoat'].includes(toID(pokemon.ability));
+                            if (pokemon.hp > 0 && !isImmune) {
+                                pokemon.hp = Math.max(0, pokemon.hp - Math.floor(pokemon.maxHp / 16));
+                                messageLog.push(`${pokemon.species} is buffeted by the sandstorm!`);
+                            }
+                        }
+                    }
+                    if (battle.weather === 'Hail' || battle.weather === 'Snow') {
+                         for (const pokemon of endTurnOrder) {
+                            const isImmune = pokemon.types.includes('Ice') || ['icebody', 'snowcloak', 'slushrush', 'overcoat'].includes(toID(pokemon.ability));
+                            if (pokemon.hp > 0 && !isImmune) {
+                                pokemon.hp = Math.max(0, pokemon.hp - Math.floor(pokemon.maxHp / 16));
+                                messageLog.push(`${pokemon.species} is buffeted by the hail!`);
+                            }
+                        }
+                    }
 				}
 
 				if (wildPokemon.hp <= 0) {
