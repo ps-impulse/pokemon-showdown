@@ -784,19 +784,33 @@ function generateMoveLearnHTML(player: PlayerData): string {
 	return html;
 }
 
-// Helper function to save status at the end of a battle
+// --- CHANGE 1 START ---
+// Helper function to save the active Pokémon's state at the end of a battle
 function saveBattleStatus(battle: BattleState) {
     const player = getPlayerData(battle.playerId);
     const pokemonInParty = player.party.find(p => p.id === battle.activePokemon.id);
+
     if (pokemonInParty) {
-        // Do not persist temporary statuses like sleep or freeze
+        // Sync HP
+        pokemonInParty.hp = battle.activePokemon.hp;
+
+        // Sync Status (Do not persist temporary statuses like sleep or freeze)
         if (battle.playerStatus === 'slp' || battle.playerStatus === 'frz') {
             pokemonInParty.status = null;
         } else {
             pokemonInParty.status = battle.playerStatus;
         }
+        
+        // Sync PP for every move
+        for (const battleMove of battle.activePokemon.moves) {
+            const partyMove = pokemonInParty.moves.find(m => m.id === battleMove.id);
+            if (partyMove) {
+                partyMove.pp = battleMove.pp;
+            }
+        }
     }
 }
+// --- CHANGE 1 END ---
 
 export const commands: ChatCommands = {
 	rpg: {
@@ -1189,12 +1203,16 @@ export const commands: ChatCommands = {
 				if (!battle) return this.errorReply("You are not in a battle.");
 				battle.turn++;
 
+				// --- CHANGE 2 START ---
+				// Use the Pokémon object directly from the battle state.
+				const playerPokemon = battle.activePokemon;
+				// We get the player object for other reasons, like gaining EXP later.
 				const player = getPlayerData(battle.playerId);
-				const playerPokemon = player.party.find(p => p.id === battle.activePokemon.id);
-				if (!playerPokemon) return this.errorReply("Active pokemon not found.");
-
+		
 				const moveId = toID(target);
+				// This check now uses the same object that generated the UI, so it will always pass for a valid move.
 				if (!playerPokemon.moves.some(m => m.id === moveId)) return this.errorReply("Invalid move.");
+				// --- CHANGE 2 END ---
 
 				const messageLog: string[] = [];
 				const { wildPokemon } = battle;
