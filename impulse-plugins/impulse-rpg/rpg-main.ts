@@ -1057,7 +1057,8 @@ export const commands: ChatCommands = {
 				return this.errorReply("Pokemon not found in PC.");
 			}
 			player.party.push(pokemon);
-			this.sendReply(`|uhtmlchange|rpg-${user.id}|<div class="infobox"><h2>Pokemon Withdrawn</h2><p><strong>${pokemon.species}</strong> has been withdrawn from the PC!</p>${generatePokemonInfoHTML(pokemon)}<p><button name="send" value="/rpg pc" class="button">View PC</button><button name="send" value="/rpg party" class="button">Back to Party</button></p></div>`);
+			// CORRECTED: Added "Back to Menu" button
+			this.sendReply(`|uhtmlchange|rpg-${user.id}|<div class="infobox"><h2>Pokemon Withdrawn</h2><p><strong>${pokemon.species}</strong> has been withdrawn from the PC!</p>${generatePokemonInfoHTML(pokemon)}<p><button name="send" value="/rpg pc" class="button">View PC</button><button name="send" value="/rpg party" class="button">Back to Party</button><button name="send" value="/rpg menu" class="button">Back to Menu</button></p></div>`);
 		},
 
 		shop(target, room, user) {
@@ -1065,7 +1066,33 @@ export const commands: ChatCommands = {
 				return this.errorReply("You cannot shop during a battle.");
 			}
 			const player = getPlayerData(user.id);
-			const shopHTML = `<div class="infobox"><h2>Poke Mart</h2><p><strong>Your Money:</strong> ₽${player.money}</p><h3>Items for Sale:</h3><div style="display: grid; grid-template-columns: repeat(2, 1fr); gap: 10px;"><div style="border: 1px solid #ccc; padding: 8px; border-radius: 5px;"><strong>Poke Ball</strong> - ₽200<br><small>A device for catching wild Pokemon</small><br><button name="send" value="/rpg buy pokeball 1" class="button" style="font-size: 12px; margin-top: 5px;">Buy 1</button><button name="send" value="/rpg buy pokeball 5" class="button" style="font-size: 12px;">Buy 5</button></div><div style="border: 1px solid #ccc; padding: 8px; border-radius: 5px;"><strong>Great Ball</strong> - ₽600<br><small>A ball with a 1.5x catch rate.</small><br><button name="send" value="/rpg buy greatball 1" class="button" style="font-size: 12px; margin-top: 5px;">Buy 1</button></div><div style="border: 1px solid #ccc; padding: 8px; border-radius: 5px;"><strong>Ultra Ball</strong> - ₽800<br><small>A ball with a 2x catch rate.</small><br><button name="send" value="/rpg buy ultraball 1" class="button" style="font-size: 12px; margin-top: 5px;">Buy 1</button></div><div style="border: 1px solid #ccc; padding: 8px; border-radius: 5px;"><strong>Potion</strong> - ₽300<br><small>Restores 20 HP to a Pokemon</small><br><button name="send" value="/rpg buy potion 1" class="button" style="font-size: 12px; margin-top: 5px;">Buy 1</button><button name="send" value="/rpg buy potion 5" class="button" style="font-size: 12px;">Buy 5</button></div><div style="border: 1px solid #ccc; padding: 8px; border-radius: 5px;"><strong>Quick Ball</strong> - ₽1000<br><small>5x catch rate on turn 1.</small><br><button name="send" value="/rpg buy quickball 1" class="button" style="font-size: 12px; margin-top: 5px;">Buy 1</button></div><div style="border: 1px solid #ccc; padding: 8px; border-radius: 5px;"><strong>Timer Ball</strong> - ₽1000<br><small>Catch rate increases each turn.</small><br><button name="send" value="/rpg buy timerball 1" class="button" style="font-size: 12px; margin-top: 5px;">Buy 1</button></div><div style="border: 1px solid #ccc; padding: 8px; border-radius: 5px;"><strong>Egg Move Tutor</strong> - ₽3000<br><small>Teaches a Pokemon an Egg Move</small><br><button name="send" value="/rpg buy eggmovetutor 1" class="button" style="font-size: 12px; margin-top: 5px;">Buy 1</button></div></div><p style="margin-top: 15px;"><button name="send" value="/rpg menu" class="button">Back to Menu</button></p></div>`;
+            
+            // Centralized price list for all purchasable items
+			const prices: Record<string, number> = {
+				'pokeball': 200, 'greatball': 600, 'ultraball': 800, 'potion': 300, 
+                'superpotion': 700, 'hyperpotion': 1200, 'fullrestore': 3000, 
+                'eggmovetutor': 3000, 'levelball': 1000, 'fastball': 1000, 
+                'timerball': 1000, 'nestball': 1000, 'netball': 1000, 
+                'quickball': 1000, 'dreamball': 1000, 'premierball': 200, 
+                'luxuryball': 1000, 'healball': 300,
+			};
+
+            let shopHTML = `<div class="infobox"><h2>Poke Mart</h2><p><strong>Your Money:</strong> ₽${player.money}</p><h3>Items for Sale:</h3><div style="display: grid; grid-template-columns: repeat(2, 1fr); gap: 10px;">`;
+
+            for (const itemId in prices) {
+                const itemData = ITEMS_DATABASE[itemId];
+                const itemPrice = prices[itemId];
+                if (itemData && itemPrice) {
+                    shopHTML += `<div style="border: 1px solid #ccc; padding: 8px; border-radius: 5px;">
+                                    <strong>${itemData.name}</strong> - ₽${itemPrice}<br>
+                                    <small>${itemData.description}</small><br>
+                                    <button name="send" value="/rpg buy ${itemId} 1" class="button" style="font-size: 12px; margin-top: 5px;">Buy 1</button>
+                                    ${['pokeball', 'potion'].includes(itemId) ? `<button name="send" value="/rpg buy ${itemId} 5" class="button" style="font-size: 12px;">Buy 5</button>` : ''}
+                                 </div>`;
+                }
+            }
+
+			shopHTML += `</div><p style="margin-top: 15px;"><button name="send" value="/rpg menu" class="button">Back to Menu</button></p></div>`;
 			this.sendReply(`|uhtmlchange|rpg-${user.id}|${shopHTML}`);
 		},
 
@@ -1075,23 +1102,33 @@ export const commands: ChatCommands = {
 			}
 			const [itemId, quantityStr] = target.split(' ');
 			const quantity = parseInt(quantityStr) || 1;
+			if (quantity <= 0) return this.errorReply("You must buy a positive quantity of items.");
+
 			const player = getPlayerData(user.id);
 			if (!itemId || !ITEMS_DATABASE[itemId]) {
 				return this.errorReply("Invalid item specified.");
 			}
+            
+            // Centralized price list to ensure consistency
 			const prices: Record<string, number> = {
-				'pokeball': 200, 'greatball': 600, 'ultraball': 800, 'potion': 300, 'superpotion': 700, 'hyperpotion': 1200, 'eggmovetutor': 3000,
-				'levelball': 1000, 'fastball': 1000, 'timerball': 1000, 'nestball': 1000, 'netball': 1000, 'quickball': 1000, 'dreamball': 1000,
-				'premierball': 200, 'luxuryball': 1000, 'healball': 300,
+				'pokeball': 200, 'greatball': 600, 'ultraball': 800, 'potion': 300, 
+                'superpotion': 700, 'hyperpotion': 1200, 'fullrestore': 3000, 
+                'eggmovetutor': 3000, 'levelball': 1000, 'fastball': 1000, 
+                'timerball': 1000, 'nestball': 1000, 'netball': 1000, 
+                'quickball': 1000, 'dreamball': 1000, 'premierball': 200, 
+                'luxuryball': 1000, 'healball': 300,
 			};
+
 			const itemPrice = prices[itemId];
 			if (!itemPrice) {
 				return this.errorReply("This item is not for sale.");
 			}
+
 			const totalCost = itemPrice * quantity;
 			if (player.money < totalCost) {
 				return this.errorReply(`You don't have enough money! You need ₽${totalCost}.`);
 			}
+
 			player.money -= totalCost;
 			addItemToInventory(player, itemId, quantity);
 			const item = ITEMS_DATABASE[itemId];
@@ -1424,24 +1461,39 @@ export const commands: ChatCommands = {
                 const player = getPlayerData(battle.playerId);
                 this.sendReply(`|uhtmlchange|rpg-${user.id}|${generateCatchMenuHTML(player, battle)}`);
             },
+
 			'catch'(target, room, user) {
 				const battle = activeBattles.get(user.id);
 				if (!battle) return this.errorReply("You are not in a battle.");
 				battle.turn++;
+
 				const player = getPlayerData(battle.playerId);
 				const ballId = toID(target);
 				const ballItem = player.inventory.get(ballId);
 
-				if (!ballItem || ballItem.quantity < 1) return this.errorReply(`You don't have any of that item!`);
-				if (player.party.length >= 6 && player.pc.size >= 100) return this.errorReply("Your party and PC are full!");
+				if (!ballItem || ballItem.category !== 'pokeball' || ballItem.quantity < 1) {
+					return this.errorReply(`You don't have any ${ITEMS_DATABASE[ballId]?.name || 'of that item'}!`);
+				}
+				if (player.party.length >= 6 && player.pc.size >= 100) {
+					return this.errorReply("Your party and PC are full!");
+				}
 
 				removeItemFromInventory(player, ballId, 1);
-				let messageLog = [`${player.name} used a ${ballItem.name}!`];
+				const messageLog: string[] = [];
+				messageLog.push(`${player.name} used a ${ballItem.name}!`);
+
 				const catchResult = performCatchAttempt(battle, ballId);
-				const shakeMessages = ["Oh no! The Pokemon broke free!", "Aww! It appeared to be caught!", "Aargh! Almost had it!", "Gah! It was so close, too!"];
+				const shakeMessages = [
+					"Oh no! The Pokemon broke free!",
+					"Aww! It appeared to be caught!",
+					"Aargh! Almost had it!",
+					"Gah! It was so close, too!",
+				];
 				
 				for (let i = 1; i <= catchResult.shakes; i++) {
-                    if (i < 4) messageLog.push("...The ball shook...");
+                    if (i < 4) {
+                        messageLog.push("...The ball shook...");
+                    }
                 }
 
 				if (catchResult.success) {
@@ -1453,33 +1505,42 @@ export const commands: ChatCommands = {
 						caughtPokemon.status = null;
                     }
 					const location = player.party.length < 6 ? "your party" : "PC";
-					if (player.party.length < 6) player.party.push(caughtPokemon);
-					else storePokemonInPC(player, caughtPokemon);
+					if (player.party.length < 6) {
+						player.party.push(caughtPokemon);
+					} else {
+						storePokemonInPC(player, caughtPokemon);
+					}
 
 					let successMessage = `<h2>Gotcha!</h2><p><strong>${caughtPokemon.species}</strong> was caught!</p>`;
-					this.sendReply(`|uhtmlchange|rpg-${user.id}|<div class="infobox">${successMessage}${generatePokemonInfoHTML(caughtPokemon)}<p>${caughtPokemon.species} has been sent to ${location}.</p></div>`);
+                    if (ballId === 'healball') successMessage += `<p>${caughtPokemon.species} was fully healed!</p>`;
+
+					this.sendReply(`|uhtmlchange|rpg-${user.id}|<div class="infobox">${successMessage}${generatePokemonInfoHTML(caughtPokemon)}<p>${caughtPokemon.species} has been sent to ${location}.</p><p><button name="send" value="/rpg wildpokemon" class="button">Find Another</button><button name="send" value="/rpg party" class="button">View Party</button><button name="send" value="/rpg pc" class="button">Go to PC</button><button name="send" value="/rpg menu" class="button">Back to Menu</button></p></div>`);
 				} else {
 					messageLog.push(shakeMessages[catchResult.shakes]);
+
 					const wildMoveData = battle.wildPokemon.moves[Math.floor(Math.random() * battle.wildPokemon.moves.length)];
 					const wildResult = calculateDamage(battle.wildPokemon, battle.activePokemon, wildMoveData, battle);
 					battle.activePokemon.hp = Math.max(0, battle.activePokemon.hp - wildResult.damage);
 					messageLog.push(wildResult.message);
-					if (wildResult.damage > 0) messageLog.push(`${battle.activePokemon.species} took ${wildResult.damage} damage!`);
+					if (wildResult.damage > 0) {
+						messageLog.push(`${battle.activePokemon.species} took ${wildResult.damage} damage!`);
+					}
 					
 					if (battle.activePokemon.hp <= 0) {
-                        if (!player.party.some(p => p.hp > 0)) {
-						    saveBattleStatus(battle);
-						    activeBattles.delete(user.id);
-						    const moneyLost = Math.min(player.money, 100);
-						    player.money -= moneyLost;
-						    return this.sendReply(`|uhtmlchange|rpg-${user.id}|${generateDefeatHTML(moneyLost)}`);
-					    } else {
-						    return this.sendReply(`|uhtmlchange|rpg-${user.id}|${generateSwitchPokemonHTML(battle, "Choose a Pokemon to switch to.")}`);
-					    }
+						if (!player.party.some(p => p.hp > 0)) {
+							saveBattleStatus(battle);
+							activeBattles.delete(user.id);
+							const moneyLost = Math.min(player.money, 100);
+							player.money -= moneyLost;
+							return this.sendReply(`|uhtmlchange|rpg-${user.id}|${generateDefeatHTML(moneyLost)}`);
+						} else {
+							return this.sendReply(`|uhtmlchange|rpg-${user.id}|${generateSwitchPokemonHTML(battle, "Choose a Pokemon to switch to.")}`);
+						}
 					}
 					this.sendReply(`|uhtmlchange|rpg-${user.id}|${generateBattleHTML(battle, messageLog)}`);
 				}
 			},
+			
 			'back'(target, room, user) {
 				const battle = activeBattles.get(user.id);
 				if (battle) {
