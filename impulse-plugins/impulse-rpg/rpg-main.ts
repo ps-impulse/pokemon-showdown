@@ -1,4 +1,4 @@
-//import { AbilityHandler } from './rpg-abilities';
+// Pokemon RPG Plugin for Pokemon Showdown
 
 // Interface for RPG Pokemon data
 interface RPGPokemon {
@@ -11,7 +11,6 @@ interface RPGPokemon {
 	spa: number;
 	spd: number;
 	spe: number;
-    types: string[]; // UPDATED: Now an array for type changes
 	ivs: Record<keyof Stats, number>;
 	evs: Record<keyof Stats, number>;
 	growthRate: string;
@@ -23,8 +22,6 @@ interface RPGPokemon {
 	ability?: string;
 	item?: string;
 	id: string;
-    isTransformed?: boolean; // ADDED: For abilities like Imposter
-    formBroken?: boolean; // ADDED: For abilities like Disguise
 }
 
 // Interface for inventory items
@@ -69,13 +66,9 @@ interface BattleState {
 	wildStatus: Status | null;
 	playerSleepCounter: number;
 	wildSleepCounter: number;
-    // ADDED: For weather/terrain and complex ability logic
-    weather?: 'Sun' | 'Rain' | 'Sand' | 'Hail' | 'Snow';
-    terrain?: 'Electric' | 'Grassy' | 'Misty' | 'Psychic';
-    isAbilitySuppressed?: boolean;
 }
 
-// In-memory storage for player data
+// In-memory storage for player data (in production, use a database)
 const playerData: Map<string, PlayerData> = new Map();
 const activeBattles: Map<string, BattleState> = new Map();
 
@@ -104,19 +97,21 @@ const ITEMS_DATABASE: Record<string, Omit<InventoryItem, 'quantity'>> = {
 	'eggmovetutor': { id: 'eggmovetutor', name: 'Egg Move Tutor', category: 'misc', description: 'A special item that teaches a compatible Pokémon one of its Egg Moves.' },
 };
 
-// Starter Pokemon data
+// Starter Pokemon data organized by type
 const STARTER_POKEMON = {
 	fire: ['charmander', 'cyndaquil', 'torchic', 'chimchar', 'tepig', 'fennekin', 'litten', 'scorbunny', 'fuecoco'],
 	water: ['squirtle', 'totodile', 'mudkip', 'piplup', 'oshawott', 'froakie', 'popplio', 'sobble', 'quaxly'],
 	grass: ['bulbasaur', 'chikorita', 'treecko', 'turtwig', 'snivy', 'chespin', 'rowlet', 'grookey', 'sprigatito'],
 };
 
-// Manual data
-const AbilityHandler = Impulse.AbilityHandler;
 const MANUAL_CATCH_RATES = Impulse.MANUAL_CATCH_RATES;
+
 const MANUAL_BASE_EXP = Impulse.MANUAL_BASE_EXP;
+
 const MANUAL_EV_YIELDS = Impulse.MANUAL_EV_YIELDS;
+
 const MANUAL_LEARNSETS = Impulse.MANUAL_LEARNSETS;
+
 const MANUAL_EVOLUTIONS = Impulse.MANUAL_EVOLUTIONS;
 
 // Type Chart
@@ -141,28 +136,14 @@ const TYPE_CHART: { [type: string]: { superEffective: string[], notVeryEffective
 	Fairy: { superEffective: ['Fighting', 'Dragon', 'Dark'], notVeryEffective: ['Fire', 'Poison', 'Steel'], noEffect: [] },
 };
 
-// Natures
 const NATURES: Record<string, { plus: keyof Stats, minus: keyof Stats } | null> = {
     'Adamant': { plus: 'atk', minus: 'spa' }, 'Bashful': null, 'Brave': { plus: 'atk', minus: 'spe' }, 'Bold': { plus: 'def', minus: 'atk' }, 'Calm': { plus: 'spd', minus: 'atk' }, 'Careful': { plus: 'spd', minus: 'spa' }, 'Docile': null, 'Gentle': { plus: 'spd', minus: 'def' }, 'Hardy': null, 'Hasty': { plus: 'spe', minus: 'def' }, 'Impish': { plus: 'def', minus: 'spa' }, 'Jolly': { plus: 'spe', minus: 'spa' }, 'Lax': { plus: 'def', minus: 'spd' }, 'Lonely': { plus: 'atk', minus: 'def' }, 'Mild': { plus: 'spa', minus: 'def' }, 'Modest': { plus: 'spa', minus: 'atk' }, 'Naive': { plus: 'spe', minus: 'spd' }, 'Naughty': { plus: 'atk', minus: 'spd' }, 'Quiet': { plus: 'spa', minus: 'spe' }, 'Quirky': null, 'Rash': { plus: 'spa', minus: 'spd' }, 'Relaxed': { plus: 'def', minus: 'spe' }, 'Sassy': { plus: 'spd', minus: 'spe' }, 'Serious': null, 'Timid': { plus: 'spe', minus: 'atk' },
 };
 const NATURE_LIST = Object.keys(NATURES);
-type Stats = Omit<RPGPokemon, 'species' | 'level' | 'experience' | 'moves' | 'id' | 'expToNextLevel' | 'hp' | 'ability' | 'item' | 'nature' | 'growthRate' | 'ivs' | 'evs' | 'status' | 'types' | 'isTransformed' | 'formBroken'>;
+type Stats = Omit<RPGPokemon, 'species' | 'level' | 'experience' | 'moves' | 'id' | 'expToNextLevel' | 'hp' | 'ability' | 'item' | 'nature' | 'growthRate' | 'ivs' | 'evs' | 'status'>;
 
-function isGrounded(pokemon: RPGPokemon): boolean {
-    // A simplified check. A full implementation would check for Magnet Rise, Telekinesis, etc.
-    if (pokemon.types.includes('Flying') || pokemon.ability === 'levitate') {
-        return false;
-    }
-    return true;
-}
-
-function getCustomEffectiveness(moveType: string, defenderTypes: string[], attackerAbility?: string): number {
+function getCustomEffectiveness(moveType: string, defenderTypes: string[]): number {
 	let effectiveness = 1;
-
-    if (attackerAbility === 'scrappy' && (moveType === 'Normal' || moveType === 'Fighting') && defenderTypes.includes('Ghost')) {
-        defenderTypes = defenderTypes.filter(t => t !== 'Ghost');
-    }
-
 	const chartEntry = TYPE_CHART[moveType];
 	if (!chartEntry) return 1;
 	for (const defenderType of defenderTypes) {
@@ -273,8 +254,18 @@ function createPokemon(speciesId: string, level: number = 5): RPGPokemon {
 			}
 		}
 		if (learnedMoves.length > 0) availableMoves = [...new Set(learnedMoves)].slice(-4);
+	} else {
+		try {
+			const learnset = species.learnset;
+			if (learnset) {
+				const moves = Object.keys(learnset).filter(moveId => { // @ts-ignore
+					return learnset[moveId].some((learnMethod: string) => learnMethod.startsWith('8L' + level) || learnMethod.startsWith('8L' + (level - 1)) || learnMethod.startsWith('8L' + (level - 2)) || learnMethod.startsWith('8L' + (level - 3)) || learnMethod.startsWith('8L' + (level - 4)) || learnMethod.startsWith('8L' + (level - 5)));
+				});
+				if (moves.length > 0) availableMoves = moves.slice(-4);
+			}
+		} catch (e) { /* fallback */ }
 	}
-	
+
 	const movesWithPP = availableMoves.map(moveId => {
 		const moveData = Dex.moves.get(moveId);
 		return { id: moveId, pp: moveData.pp || 5 };
@@ -285,7 +276,6 @@ function createPokemon(speciesId: string, level: number = 5): RPGPokemon {
 	const growthRate = species.growthRate;
 	return {
 		species: species.name,
-        types: [...species.types],
 		level: level,
 		hp: stats.maxHp,
 		growthRate: growthRate,
@@ -330,7 +320,7 @@ function generateStarterSelectionHTML(type: string): string {
 			html += `<div style="text-align: center; padding: 10px; border: 1px solid #ccc; border-radius: 5px;"><strong>${species.name}</strong><br><small>Type: ${species.types.join('/')}</small><br><button name="send" value="/rpg choosestarter ${starterId}" class="button" style="margin-top: 5px;">Choose</button></div>`;
 		}
 	}
-	html += `</div><p style="margin-top: 15px;"><button name="send" value="/rpg start" class="button">← Back to Type Selection</button></p></div>`;
+	html += '</div><p style="margin-top: 15px;"><button name="send" value="/rpg start" class="button">← Back to Type Selection</button></p></div>';
 	return html;
 }
 
@@ -340,6 +330,7 @@ function generatePokemonInfoHTML(
     status: Status | null = null,
     statStages: Record<keyof Omit<Stats, 'maxHp'>, number> | null = null
 ): string {
+	const species = Dex.species.get(pokemon.species);
 	const hpPercentage = Math.max(0, Math.floor((pokemon.hp / pokemon.maxHp) * 100));
 	const hpBarColor = hpPercentage > 50 ? 'green' : hpPercentage > 25 ? 'orange' : 'red';
 	const expForLastLevel = calculateTotalExpForLevel(pokemon.growthRate, pokemon.level);
@@ -369,14 +360,14 @@ function generatePokemonInfoHTML(
         return `${moveData.name} (${m.pp}/${moveData.pp})`;
     }).slice(0, 4).join(', ') || 'None';
 
-	let html = `<div style="border: 1px solid #ccc; padding: 10px; margin: 5px; border-radius: 5px;"><strong>${pokemon.species}</strong> (Level ${pokemon.level})${statusTag}${statStageTags}<br><small>Type: ${pokemon.types.join('/')}</small><br><div style="background: #f0f0f0; border-radius: 10px; padding: 2px; margin: 5px 0;"><div style="background: ${hpBarColor}; width: ${hpPercentage}%; height: 10px; border-radius: 8px;"></div></div>HP: ${pokemon.hp}/${pokemon.maxHp}<br><div style="background: #f0f0f0; border-radius: 10px; padding: 2px; margin: 5px 0;"><div style="background: #6c9be8; width: ${expPercentage}%; height: 8px; border-radius: 8px;"></div></div>EXP: ${pokemon.experience}/${pokemon.expToNextLevel}<br>Nature: ${pokemon.nature}<br>Ability: ${pokemon.ability || 'Unknown'}<br>Moves: ${movesDisplay}`;
+	let html = `<div style="border: 1px solid #ccc; padding: 10px; margin: 5px; border-radius: 5px;"><strong>${pokemon.species}</strong> (Level ${pokemon.level})${statusTag}${statStageTags}<br><small>Type: ${species.types.join('/')}</small><br><div style="background: #f0f0f0; border-radius: 10px; padding: 2px; margin: 5px 0;"><div style="background: ${hpBarColor}; width: ${hpPercentage}%; height: 10px; border-radius: 8px;"></div></div>HP: ${pokemon.hp}/${pokemon.maxHp}<br><div style="background: #f0f0f0; border-radius: 10px; padding: 2px; margin: 5px 0;"><div style="background: #6c9be8; width: ${expPercentage}%; height: 8px; border-radius: 8px;"></div></div>EXP: ${pokemon.experience}/${pokemon.expToNextLevel}<br>Nature: ${pokemon.nature}<br>Ability: ${pokemon.ability || 'Unknown'}<br>Moves: ${movesDisplay}`;
 	if (pokemon.item) {
 		html += `<br>Held Item: ${pokemon.item}`;
 	}
 	if (showActions) {
 		html += `<br><div style="margin-top: 10px;"><button name="send" value="/rpg summary ${pokemon.id}" class="button" style="font-size: 12px;">Summary</button> <button name="send" value="/rpg useitem potion ${pokemon.id}" class="button" style="font-size: 12px;">Use Potion</button> <button name="send" value="/rpg depositpc ${pokemon.id}" class="button" style="font-size: 12px;">Deposit</button></div>`;
 	}
-	html += `</div>`;
+	html += '</div>';
 	return html;
 }
 
@@ -446,7 +437,7 @@ function getBallBonus(ballId: string, battle: BattleState): number {
         case 'dreamball':
             return wildStatus === 'slp' ? 4 : 1;
         default:
-            return 1;
+            return 1; // pokeball, premierball, luxuryball, healball, etc.
     }
 }
 
@@ -456,7 +447,7 @@ function performCatchAttempt(battle: BattleState, ballId: string): { success: bo
     const catchRate = MANUAL_CATCH_RATES[speciesId] || 45;
 
     const ballBonus = getBallBonus(ballId, battle);
-    if (ballBonus === 255) return { success: true, shakes: 4 };
+    if (ballBonus === 255) return { success: true, shakes: 4 }; // Master Ball
 
     let statusBonus = 1;
     if (wildStatus === 'slp' || wildStatus === 'frz') {
@@ -466,16 +457,25 @@ function performCatchAttempt(battle: BattleState, ballId: string): { success: bo
     }
 
     const { maxHp, hp } = wildPokemon;
-    const a = Math.floor((((3 * maxHp - 2 * hp) * catchRate * ballBonus) / (3 * maxHp)) * statusBonus);
-    if (a >= 255) return { success: true, shakes: 4 };
+	const modifiedCatchRate = catchRate;
+
+    const a = Math.floor(
+        (((3 * maxHp - 2 * hp) * modifiedCatchRate * ballBonus) / (3 * maxHp)) * statusBonus
+    );
+
+    if (a >= 255) return { success: true, shakes: 4 }; // Automatic catch
 
     const b = Math.floor(65536 / Math.pow(255 / a, 0.1875));
+
     let shakes = 0;
     for (let i = 0; i < 4; i++) {
         const rand = Math.floor(Math.random() * 65536);
-        if (rand >= b) return { success: false, shakes: shakes };
+        if (rand >= b) {
+            return { success: false, shakes: shakes };
+        }
         shakes++;
     }
+
     return { success: true, shakes: 4 };
 }
 
@@ -495,94 +495,79 @@ function generatePCHTML(player: PlayerData): string {
 }
 
 function getStatMultiplier(stage: number): number {
-    return stage >= 0 ? (2 + stage) / 2 : 2 / (2 - stage);
+    if (stage >= 0) {
+        return (2 + stage) / 2;
+    } else {
+        return 2 / (2 - Math.abs(stage));
+    }
 }
 
 function calculateDamage(
     attacker: RPGPokemon,
     defender: RPGPokemon,
-    move: any,
-    battle: BattleState
-): { damage: number, message: string, isCritical: boolean } {
-    const { playerStatStages, wildStatStages, weather, terrain } = battle;
-    const attackerStages = attacker.id === battle.activePokemon.id ? playerStatStages : wildStatStages;
-    const defenderStages = defender.id === battle.activePokemon.id ? playerStatStages : wildStatStages;
-    const attackerStatus = attacker.id === battle.activePokemon.id ? battle.playerStatus : battle.wildStatus;
-
+    moveId: string,
+    attackerStages: Record<keyof Omit<Stats, 'maxHp'>, number>,
+    defenderStages: Record<keyof Omit<Stats, 'maxHp'>, number>,
+    attackerStatus: Status | null
+): { damage: number, message: string } {
+	const move = Dex.moves.get(moveId);
 	if (!move.basePower) {
-		if (move.id === 'dragonrage') return { damage: 40, message: `${attacker.species} used ${move.name}!`, isCritical: false };
-		return { damage: 0, message: `${attacker.species} used ${move.name}, but it had no effect!`, isCritical: false };
+		if (moveId === 'dragonrage') return { damage: 40, message: `${attacker.species} used ${move.name}!` };
+		return { damage: 0, message: `${attacker.species} used ${move.name}, but it had no effect!` };
 	}
+	const attackerSpecies = Dex.species.get(attacker.species);
+	const defenderSpecies = Dex.species.get(defender.species);
 
-    // --- BASE POWER MODIFICATIONS ---
-    let basePower = move.basePower;
-    basePower = AbilityHandler.getBasePower(basePower, attacker, defender, move);
-    
-    // Terrain-based power modifications
-    if (isGrounded(attacker)) {
-        if (terrain === 'Grassy' && move.type === 'Grass') basePower *= 1.3;
-        if (terrain === 'Electric' && move.type === 'Electric') basePower *= 1.3;
-    }
-    if (isGrounded(defender)) {
-        if (terrain === 'Grassy' && move.id === 'earthquake') basePower *= 0.5; // Example for moves affected by terrain
-    }
+	const attackStatRaw = move.category === 'Special' ? attacker.spa : attacker.atk;
+	const defenseStatRaw = move.category === 'Special' ? defender.spd : defender.def;
 
-    // Weather-based power modifications
-    if (weather === 'Sun') {
-        if (move.type === 'Fire') basePower *= 1.5;
-        if (move.type === 'Water') basePower *= 0.5;
-    }
-    if (weather === 'Rain') {
-        if (move.type === 'Water') basePower *= 1.5;
-        if (move.type === 'Fire') basePower *= 0.5;
-    }
-
-	// --- STAT CALCULATION ---
-	let attackStatRaw = move.category === 'Special' ? attacker.spa : attacker.atk;
-    attackStatRaw = AbilityHandler.modifyAtk(attacker, attackStatRaw, battle);
-
-	let defenseStatRaw = move.category === 'Special' ? defender.spd : defender.def;
 	const attackStage = move.category === 'Special' ? attackerStages.spa : attackerStages.atk;
 	const defenseStage = move.category === 'Special' ? defenderStages.spd : defenderStages.def;
-    
-    const attackMultiplier = AbilityHandler.getAbility(defender.ability)?.id === 'unaware' ? 1 : getStatMultiplier(attackStage);
-    const defenseMultiplier = AbilityHandler.getAbility(attacker.ability)?.id === 'unaware' ? 1 : getStatMultiplier(defenseStage);
 
-	const attackStat = Math.floor(attackStatRaw * attackMultiplier);
-	const defenseStat = Math.floor(defenseStatRaw * defenseMultiplier);
+	const attackStat = Math.floor(attackStatRaw * getStatMultiplier(attackStage));
+	const defenseStat = Math.floor(defenseStatRaw * getStatMultiplier(defenseStage));
 	
 	let finalAttackStat = attackStat;
-	if (attackerStatus === 'brn' && move.category === 'Physical' && AbilityHandler.getAbility(attacker.ability)?.id !== 'guts') {
+	if (attackerStatus === 'brn' && move.category === 'Physical') {
 		finalAttackStat = Math.floor(finalAttackStat / 2);
 	}
 	
-    // --- DAMAGE MULTIPLIERS ---
 	const isCritical = Math.random() < (1 / 24);
 	const criticalMultiplier = isCritical ? 1.5 : 1;
-	
-    const isStab = attacker.types.includes(move.type);
-	const stabMultiplier = AbilityHandler.getAbility(attacker.ability)?.id === 'adaptability' ? (isStab ? 2 : 1) : (isStab ? 1.5 : 1);
-	
-    const randomMultiplier = Math.floor(Math.random() * 16 + 85) / 100;
-	
-    let damage = Math.floor((((2 * attacker.level / 5 + 2) * basePower * (finalAttackStat / defenseStat)) / 50) + 2);
-	
-    const effectiveness = getCustomEffectiveness(move.type, defender.types, attacker.ability);
-	
-    damage = Math.floor(damage * stabMultiplier * effectiveness * criticalMultiplier * randomMultiplier);
-    damage = AbilityHandler.modifyDamage(damage, move, defender, attacker);
-
+	const isStab = attackerSpecies.types.includes(move.type);
+	const stabMultiplier = isStab ? 1.5 : 1;
+	const randomMultiplier = Math.floor(Math.random() * 16 + 85) / 100;
+	let damage = Math.floor((((2 * attacker.level / 5 + 2) * move.basePower * (finalAttackStat / defenseStat)) / 50) + 2);
+	const effectiveness = getCustomEffectiveness(move.type, defenderSpecies.types);
+	damage = Math.floor(damage * stabMultiplier * effectiveness * criticalMultiplier * randomMultiplier);
 	damage = Math.max(1, damage);
-	
-    let message = `${attacker.species} used ${move.name}!`;
+	let message = `${attacker.species} used ${move.name}!`;
 	if (isCritical) message += " A critical hit!";
 	if (effectiveness > 1) message += " It's super effective!";
 	if (effectiveness < 1 && effectiveness > 0) message += " It's not very effective...";
-	if (effectiveness === 0) {
-        message = `It had no effect on ${defender.species}!`;
-        damage = 0;
-    }
-	return { damage, message, isCritical };
+	if (effectiveness === 0) message = `It had no effect on ${defender.species}!`;
+	return { damage, message };
+}
+
+function levelUp(pokemon: RPGPokemon): string[] {
+	const levelUpMessages: string[] = [];
+	pokemon.level++;
+	levelUpMessages.push(`**${pokemon.species} grew to Level ${pokemon.level}!**`);
+	const oldStats = { ...pokemon };
+	const species = Dex.species.get(pokemon.species);
+	const newStats = calculateStats(species, pokemon.level, pokemon.nature, pokemon.ivs, pokemon.evs);
+	pokemon.maxHp = newStats.maxHp;
+	pokemon.atk = newStats.atk;
+	pokemon.def = newStats.def;
+	pokemon.spa = newStats.spa;
+	pokemon.spd = newStats.spd;
+	pokemon.spe = newStats.spe;
+	pokemon.hp = pokemon.maxHp; // Leveling up fully heals the pokemon
+	levelUpMessages.push(`Max HP: ${oldStats.maxHp} -> ${pokemon.maxHp}`);
+	levelUpMessages.push(`Attack: ${oldStats.atk} -> ${pokemon.atk}`);
+	levelUpMessages.push(`Defense: ${oldStats.def} -> ${pokemon.def}`);
+	pokemon.expToNextLevel = calculateTotalExpForLevel(pokemon.growthRate, pokemon.level + 1);
+	return levelUpMessages;
 }
 
 function handleLearningMoves(player: PlayerData, pokemon: RPGPokemon): { messages: string[] } {
@@ -669,7 +654,6 @@ function checkEvolution(player: PlayerData, pokemon: RPGPokemon, room: ChatRoom,
 	if (!evoSpecies.exists) return null;
 	const oldSpeciesName = pokemon.species;
 	pokemon.species = evoSpecies.name;
-    pokemon.types = [...evoSpecies.types];
 	const newStats = calculateStats(evoSpecies, pokemon.level, pokemon.nature, pokemon.ivs, pokemon.evs);
 	pokemon.maxHp = newStats.maxHp;
 	pokemon.atk = newStats.atk;
@@ -755,10 +739,12 @@ function generateMoveLearnHTML(player: PlayerData): string {
 	return html;
 }
 
+// Helper function to save status at the end of a battle
 function saveBattleStatus(battle: BattleState) {
     const player = getPlayerData(battle.playerId);
     const pokemonInParty = player.party.find(p => p.id === battle.activePokemon.id);
     if (pokemonInParty) {
+        // Do not persist temporary statuses like sleep or freeze
         if (battle.playerStatus === 'slp' || battle.playerStatus === 'frz') {
             pokemonInParty.status = null;
         } else {
@@ -766,7 +752,6 @@ function saveBattleStatus(battle: BattleState) {
         }
     }
 }
-
 
 export const commands: ChatCommands = {
 	rpg: {
@@ -1048,8 +1033,7 @@ export const commands: ChatCommands = {
 			}
 			const [pokemon] = player.party.splice(pokemonIndex, 1);
 			storePokemonInPC(player, pokemon);
-			// CORRECTED: Added "Back to Menu" button for consistency
-			this.sendReply(`|uhtmlchange|rpg-${user.id}|<div class="infobox"><h2>Pokemon Deposited</h2><p><strong>${pokemon.species}</strong> has been deposited into the PC!</p><p><button name="send" value="/rpg pc" class="button">View PC</button><button name="send" value="/rpg party" class="button">Back to Party</button><button name="send" value="/rpg menu" class="button">Back to Menu</button></p></div>`);
+			this.sendReply(`|uhtmlchange|rpg-${user.id}|<div class="infobox"><h2>Pokemon Deposited</h2><p><strong>${pokemon.species}</strong> has been deposited into the PC!</p><p><button name="send" value="/rpg pc" class="button">View PC</button><button name="send" value="/rpg party" class="button">Back to Party</button></p></div>`);
 		},
 
 		withdrawpc(target, room, user) {
@@ -1066,8 +1050,7 @@ export const commands: ChatCommands = {
 				return this.errorReply("Pokemon not found in PC.");
 			}
 			player.party.push(pokemon);
-			// CORRECTED: Added "Back to Menu" button
-			this.sendReply(`|uhtmlchange|rpg-${user.id}|<div class="infobox"><h2>Pokemon Withdrawn</h2><p><strong>${pokemon.species}</strong> has been withdrawn from the PC!</p>${generatePokemonInfoHTML(pokemon)}<p><button name="send" value="/rpg pc" class="button">View PC</button><button name="send" value="/rpg party" class="button">Back to Party</button><button name="send" value="/rpg menu" class="button">Back to Menu</button></p></div>`);
+			this.sendReply(`|uhtmlchange|rpg-${user.id}|<div class="infobox"><h2>Pokemon Withdrawn</h2><p><strong>${pokemon.species}</strong> has been withdrawn from the PC!</p>${generatePokemonInfoHTML(pokemon)}<p><button name="send" value="/rpg pc" class="button">View PC</button><button name="send" value="/rpg party" class="button">Back to Party</button></p></div>`);
 		},
 
 		shop(target, room, user) {
@@ -1075,33 +1058,7 @@ export const commands: ChatCommands = {
 				return this.errorReply("You cannot shop during a battle.");
 			}
 			const player = getPlayerData(user.id);
-            
-            // Centralized price list for all purchasable items
-			const prices: Record<string, number> = {
-				'pokeball': 200, 'greatball': 600, 'ultraball': 800, 'potion': 300, 
-                'superpotion': 700, 'hyperpotion': 1200, 'fullrestore': 3000, 
-                'eggmovetutor': 3000, 'levelball': 1000, 'fastball': 1000, 
-                'timerball': 1000, 'nestball': 1000, 'netball': 1000, 
-                'quickball': 1000, 'dreamball': 1000, 'premierball': 200, 
-                'luxuryball': 1000, 'healball': 300,
-			};
-
-            let shopHTML = `<div class="infobox"><h2>Poke Mart</h2><p><strong>Your Money:</strong> ₽${player.money}</p><h3>Items for Sale:</h3><div style="display: grid; grid-template-columns: repeat(2, 1fr); gap: 10px;">`;
-
-            for (const itemId in prices) {
-                const itemData = ITEMS_DATABASE[itemId];
-                const itemPrice = prices[itemId];
-                if (itemData && itemPrice) {
-                    shopHTML += `<div style="border: 1px solid #ccc; padding: 8px; border-radius: 5px;">
-                                    <strong>${itemData.name}</strong> - ₽${itemPrice}<br>
-                                    <small>${itemData.description}</small><br>
-                                    <button name="send" value="/rpg buy ${itemId} 1" class="button" style="font-size: 12px; margin-top: 5px;">Buy 1</button>
-                                    ${['pokeball', 'potion'].includes(itemId) ? `<button name="send" value="/rpg buy ${itemId} 5" class="button" style="font-size: 12px;">Buy 5</button>` : ''}
-                                 </div>`;
-                }
-            }
-
-			shopHTML += `</div><p style="margin-top: 15px;"><button name="send" value="/rpg menu" class="button">Back to Menu</button></p></div>`;
+			const shopHTML = `<div class="infobox"><h2>Poke Mart</h2><p><strong>Your Money:</strong> ₽${player.money}</p><h3>Items for Sale:</h3><div style="display: grid; grid-template-columns: repeat(2, 1fr); gap: 10px;"><div style="border: 1px solid #ccc; padding: 8px; border-radius: 5px;"><strong>Poke Ball</strong> - ₽200<br><small>A device for catching wild Pokemon</small><br><button name="send" value="/rpg buy pokeball 1" class="button" style="font-size: 12px; margin-top: 5px;">Buy 1</button><button name="send" value="/rpg buy pokeball 5" class="button" style="font-size: 12px;">Buy 5</button></div><div style="border: 1px solid #ccc; padding: 8px; border-radius: 5px;"><strong>Great Ball</strong> - ₽600<br><small>A ball with a 1.5x catch rate.</small><br><button name="send" value="/rpg buy greatball 1" class="button" style="font-size: 12px; margin-top: 5px;">Buy 1</button></div><div style="border: 1px solid #ccc; padding: 8px; border-radius: 5px;"><strong>Ultra Ball</strong> - ₽800<br><small>A ball with a 2x catch rate.</small><br><button name="send" value="/rpg buy ultraball 1" class="button" style="font-size: 12px; margin-top: 5px;">Buy 1</button></div><div style="border: 1px solid #ccc; padding: 8px; border-radius: 5px;"><strong>Potion</strong> - ₽300<br><small>Restores 20 HP to a Pokemon</small><br><button name="send" value="/rpg buy potion 1" class="button" style="font-size: 12px; margin-top: 5px;">Buy 1</button><button name="send" value="/rpg buy potion 5" class="button" style="font-size: 12px;">Buy 5</button></div><div style="border: 1px solid #ccc; padding: 8px; border-radius: 5px;"><strong>Quick Ball</strong> - ₽1000<br><small>5x catch rate on turn 1.</small><br><button name="send" value="/rpg buy quickball 1" class="button" style="font-size: 12px; margin-top: 5px;">Buy 1</button></div><div style="border: 1px solid #ccc; padding: 8px; border-radius: 5px;"><strong>Timer Ball</strong> - ₽1000<br><small>Catch rate increases each turn.</small><br><button name="send" value="/rpg buy timerball 1" class="button" style="font-size: 12px; margin-top: 5px;">Buy 1</button></div><div style="border: 1px solid #ccc; padding: 8px; border-radius: 5px;"><strong>Egg Move Tutor</strong> - ₽3000<br><small>Teaches a Pokemon an Egg Move</small><br><button name="send" value="/rpg buy eggmovetutor 1" class="button" style="font-size: 12px; margin-top: 5px;">Buy 1</button></div></div><p style="margin-top: 15px;"><button name="send" value="/rpg menu" class="button">Back to Menu</button></p></div>`;
 			this.sendReply(`|uhtmlchange|rpg-${user.id}|${shopHTML}`);
 		},
 
@@ -1111,33 +1068,23 @@ export const commands: ChatCommands = {
 			}
 			const [itemId, quantityStr] = target.split(' ');
 			const quantity = parseInt(quantityStr) || 1;
-			if (quantity <= 0) return this.errorReply("You must buy a positive quantity of items.");
-
 			const player = getPlayerData(user.id);
 			if (!itemId || !ITEMS_DATABASE[itemId]) {
 				return this.errorReply("Invalid item specified.");
 			}
-            
-            // Centralized price list to ensure consistency
 			const prices: Record<string, number> = {
-				'pokeball': 200, 'greatball': 600, 'ultraball': 800, 'potion': 300, 
-                'superpotion': 700, 'hyperpotion': 1200, 'fullrestore': 3000, 
-                'eggmovetutor': 3000, 'levelball': 1000, 'fastball': 1000, 
-                'timerball': 1000, 'nestball': 1000, 'netball': 1000, 
-                'quickball': 1000, 'dreamball': 1000, 'premierball': 200, 
-                'luxuryball': 1000, 'healball': 300,
+				'pokeball': 200, 'greatball': 600, 'ultraball': 800, 'potion': 300, 'superpotion': 700, 'hyperpotion': 1200, 'eggmovetutor': 3000,
+				'levelball': 1000, 'fastball': 1000, 'timerball': 1000, 'nestball': 1000, 'netball': 1000, 'quickball': 1000, 'dreamball': 1000,
+				'premierball': 200, 'luxuryball': 1000, 'healball': 300,
 			};
-
 			const itemPrice = prices[itemId];
 			if (!itemPrice) {
 				return this.errorReply("This item is not for sale.");
 			}
-
 			const totalCost = itemPrice * quantity;
 			if (player.money < totalCost) {
 				return this.errorReply(`You don't have enough money! You need ₽${totalCost}.`);
 			}
-
 			player.money -= totalCost;
 			addItemToInventory(player, itemId, quantity);
 			const item = ITEMS_DATABASE[itemId];
@@ -1166,7 +1113,7 @@ export const commands: ChatCommands = {
 			try {
 				const wildPokemon = createPokemon(wildSpeciesId, wildLevel);
 				const initialStages = { atk: 0, def: 0, spa: 0, spd: 0, spe: 0 };
-				const battle: BattleState = {
+				activeBattles.set(user.id, {
 					playerId: user.id,
 					wildPokemon,
 					activePokemon: firstPokemon,
@@ -1177,14 +1124,8 @@ export const commands: ChatCommands = {
 					wildStatus: null,
 					playerSleepCounter: 0,
 					wildSleepCounter: 0,
-				};
-				activeBattles.set(user.id, battle);
-
-                const messageLog = [`A wild ${wildPokemon.species} appeared!`];
-                messageLog.push(...AbilityHandler.handleOnSwitchIn(wildPokemon, firstPokemon, battle));
-                messageLog.push(...AbilityHandler.handleOnSwitchIn(firstPokemon, wildPokemon, battle));
-
-				this.sendReply(`|uhtml|rpg-${user.id}|${generateBattleHTML(battle, messageLog)}`);
+				});
+				this.sendReply(`|uhtml|rpg-${user.id}|${generateBattleHTML(activeBattles.get(user.id)!, [`A wild ${wildPokemon.species} appeared!`])}`);
 			} catch (error) {
 				this.errorReply(`Error generating wild Pokemon: ${error}`);
 			}
@@ -1204,30 +1145,30 @@ export const commands: ChatCommands = {
 				battle.turn++;
 
 				const player = getPlayerData(battle.playerId);
-				const playerPokemon = battle.activePokemon;
-				const wildPokemon = battle.wildPokemon;
-				const messageLog: string[] = [];
+				const playerPokemon = player.party.find(p => p.id === battle.activePokemon.id);
+				if (!playerPokemon) return this.errorReply("Active pokemon not found.");
+
 				const moveId = toID(target);
 				if (!playerPokemon.moves.some(m => m.id === moveId)) return this.errorReply("Invalid move.");
 
+				const messageLog: string[] = [];
+				const { wildPokemon } = battle;
+				
 				const playerMove = playerPokemon.moves.find(m => m.id === moveId)!;
 				const wildMove = wildPokemon.moves[Math.floor(Math.random() * wildPokemon.moves.length)];
 
-                const playerAction = { pokemon: playerPokemon, move: Dex.moves.get(playerMove.id), priority: Dex.moves.get(playerMove.id).priority };
-				const wildAction = { pokemon: wildPokemon, move: Dex.moves.get(wildMove.id), priority: Dex.moves.get(wildMove.id).priority };
-                
-                playerAction.priority = AbilityHandler.modifyPriority(playerAction.priority, playerAction.move, playerPokemon);
-                wildAction.priority = AbilityHandler.modifyPriority(wildAction.priority, wildAction.move, wildPokemon);
+				const playerAction = { pokemon: playerPokemon, move: Dex.moves.get(playerMove.id) };
+				const wildAction = { pokemon: wildPokemon, move: Dex.moves.get(wildMove.id) };
 
-                let playerSpe = AbilityHandler.modifySpe(playerAction.pokemon, playerAction.pokemon.spe, battle);
-                if (battle.playerStatus === 'par') playerSpe = Math.floor(playerSpe / 2);
-                let wildSpe = AbilityHandler.modifySpe(wildAction.pokemon, wildAction.pokemon.spe, battle);
-                if (battle.wildStatus === 'par') wildSpe = Math.floor(wildSpe / 2);
+				let playerSpe = playerAction.pokemon.spe;
+				if (battle.playerStatus === 'par') playerSpe = Math.floor(playerSpe / 2);
+				let wildSpe = wildAction.pokemon.spe;
+				if (battle.wildStatus === 'par') wildSpe = Math.floor(wildSpe / 2);
 
 				let turnOrder;
-				if (playerAction.priority > wildAction.priority) {
+				if (playerAction.move.priority > wildAction.move.priority) {
 					turnOrder = [playerAction, wildAction];
-				} else if (wildAction.priority > playerAction.priority) {
+				} else if (wildAction.move.priority > playerAction.move.priority) {
 					turnOrder = [wildAction, playerAction];
 				} else {
 					turnOrder = (playerSpe >= wildSpe) ? [playerAction, wildAction] : [wildAction, playerAction];
@@ -1236,34 +1177,17 @@ export const commands: ChatCommands = {
 				for (const turn of turnOrder) {
 					const attacker = turn.pokemon;
 					if (attacker.hp <= 0) continue;
-                    
-                    let move = { ...turn.move };
-                    const defender = (attacker === playerPokemon) ? wildPokemon : playerPokemon;
 
-                    // Terrain check for priority moves
-                    if (battle.terrain === 'Psychic' && isGrounded(defender) && move.priority > 0) {
-                        messageLog.push(`The Psychic Terrain blocked ${attacker.species}'s ${move.name}!`);
-                        continue;
-                    }
-
-                    const beforeMoveResult = AbilityHandler.onBeforeMove(attacker, move, battle);
-                    if (beforeMoveResult?.message) messageLog.push(beforeMoveResult.message);
-                    AbilityHandler.onModifyMove(move, attacker);
-                    battle.isAbilitySuppressed = ['moldbreaker', 'teravolt', 'turboblaze'].includes(toID(attacker.ability));
-
-                    if (!battle.isAbilitySuppressed) {
-                        const immunityCheck = AbilityHandler.handleOnTryHit(defender, attacker, move, battle);
-                        if (immunityCheck.blocked) {
-                            messageLog.push(immunityCheck.message!);
-                            continue;
-                        }
-                    }
+					const defender = (attacker === playerPokemon) ? wildPokemon : playerPokemon;
+					const move = turn.move;
+					const attackerStatus = (attacker === playerPokemon) ? battle.playerStatus : battle.wildStatus;
 					
 					const moveObject = attacker.moves.find(m => m.id === move.id);
 					if (!moveObject || moveObject.pp <= 0) {
-                        messageLog.push(`${attacker.species} tried to use ${move.name}, but it has no PP left!`);
+						messageLog.push(`${attacker.species} tried to use ${move.name}, but it has no PP left!`);
 						continue;
-                    }
+					}
+			
 					moveObject.pp--;
 			
 					const moveAccuracy = move.accuracy;
@@ -1272,7 +1196,6 @@ export const commands: ChatCommands = {
 						continue;
 					}
 
-					const attackerStatus = (attacker === playerPokemon) ? battle.playerStatus : battle.wildStatus;
 					if (attackerStatus === 'frz') {
 						if (Math.random() < 0.20) {
 							if (attacker === playerPokemon) battle.playerStatus = null; else battle.wildStatus = null;
@@ -1297,18 +1220,18 @@ export const commands: ChatCommands = {
 						messageLog.push(`${attacker.species} is fully paralyzed!`);
 						continue;
 					}
-                    
-                    if (move.category === 'Status') {
+					
+					const attackerStages = (attacker === playerPokemon) ? battle.playerStatStages : battle.wildStatStages;
+					const defenderStages = (defender === playerPokemon) ? battle.playerStatStages : battle.wildStatStages;
+
+					if (move.category === 'Status') {
 						messageLog.push(`${attacker.species} used ${move.name}!`);
+						const defenderCurrentStatus = (defender === playerPokemon) ? battle.playerStatus : battle.wildStatus;
+						
 						if (move.boosts) {
 							const targetPokemon = move.target === 'self' ? attacker : defender;
-                            const boostPrevented = AbilityHandler.onTryBoost(move.boosts, targetPokemon, attacker);
-                            if (boostPrevented.prevented) {
-                                messageLog.push(boostPrevented.message!);
-                                continue;
-                            }
-							const targetStages = targetPokemon.id === playerPokemon.id ? battle.playerStatStages : battle.wildStatStages;
-                            let changed = false, raised = false, lowered = false;
+							const targetStages = move.target === 'self' ? attackerStages : defenderStages;
+							let changed = false, raised = false, lowered = false;
 							for (const stat in move.boosts) {
 								const statName = stat as keyof Omit<Stats, 'maxHp'>;
 								const boostValue = move.boosts[statName]!;
@@ -1330,20 +1253,12 @@ export const commands: ChatCommands = {
 							else if (raised) messageLog.push(`${targetPokemon.species}'s stats were raised!`);
 							else if (lowered) messageLog.push(`${targetPokemon.species}'s stats were lowered!`);
 						} else if (move.status) {
-							// Terrain check for status moves
-                            if (battle.terrain === 'Misty' && isGrounded(defender)) {
-                                messageLog.push(`The Misty Terrain prevented the status!`);
-                                continue;
-                            }
-                            if (battle.terrain === 'Electric' && isGrounded(defender) && move.status === 'slp') {
-                                messageLog.push(`The Electric Terrain prevented sleep!`);
-                                continue;
-                            }
-							const defenderCurrentStatus = (defender === playerPokemon) ? battle.playerStatus : battle.wildStatus;
 							if (defenderCurrentStatus) {
 								messageLog.push(`But it failed!`);
 							} else {
-								let status = move.status as Status;
+								let status = move.status;
+								if (status === 'tox') status = 'psn';
+								const statusName = {psn: 'poisoned', brn: 'burned', slp: 'put to sleep', par: 'paralyzed', frz: 'frozen'}[status as Status];
 								if (status === 'slp') {
 									const sleepTurns = 1 + Math.floor(Math.random() * 3);
 									if (defender === playerPokemon) {
@@ -1355,82 +1270,71 @@ export const commands: ChatCommands = {
 									}
 									messageLog.push(`${defender.species} fell asleep!`);
 								} else {
-									if (defender === playerPokemon) battle.playerStatus = status;
-									else battle.wildStatus = status;
-									messageLog.push(`${defender.species} was afflicted with status!`);
+									if (defender === playerPokemon) battle.playerStatus = status as Status;
+									else battle.wildStatus = status as Status;
+									messageLog.push(`${defender.species} was ${statusName}!`);
+								}
+							}
+						} else {
+							messageLog.push(`But it had no effect!`);
+						}
+					} else {
+						const attackResult = calculateDamage(attacker, defender, move.id, attackerStages, defenderStages, attackerStatus);
+						defender.hp = Math.max(0, defender.hp - attackResult.damage);
+						messageLog.push(attackResult.message);
+						if (attackResult.damage > 0) {
+							const defenderName = (defender === wildPokemon) ? `The wild ${wildPokemon.species}` : playerPokemon.species;
+							messageLog.push(`${defenderName} took ${attackResult.damage} damage!`);
+
+							const defenderStatus = (defender === playerPokemon) ? battle.playerStatus : battle.wildStatus;
+							if (defenderStatus === 'frz' && move.category !== 'Status' && move.type === 'Fire') {
+								if (defender === playerPokemon) battle.playerStatus = null;
+								else battle.wildStatus = null;
+								messageLog.push(`${defender.species} was thawed out by the attack!`);
+							}
+
+							if (move.secondary && move.secondary.status && Math.random() * 100 < move.secondary.chance) {
+								const defenderCurrentStatus = (defender === playerPokemon) ? battle.playerStatus : battle.wildStatus;
+								if (!defenderCurrentStatus) {
+									let status = move.secondary.status;
+									if (status === 'tox') status = 'psn';
+									const statusName = {psn: 'poisoned', brn: 'burned', slp: 'put to sleep', par: 'paralyzed', frz: 'frozen'}[status as Status];
+									if (status === 'slp') {
+										const sleepTurns = 1 + Math.floor(Math.random() * 3);
+										if (defender === playerPokemon) {
+											battle.playerStatus = 'slp';
+											battle.playerSleepCounter = sleepTurns;
+										} else {
+											battle.wildStatus = 'slp';
+											battle.wildSleepCounter = sleepTurns;
+										}
+										messageLog.push(`${defender.species} fell asleep!`);
+									} else {
+										if (defender === playerPokemon) battle.playerStatus = status as Status;
+										else battle.wildStatus = status as Status;
+										messageLog.push(`${defender.species} was ${statusName}!`);
+									}
 								}
 							}
 						}
-					} else {
-						const attackResult = calculateDamage(attacker, defender, move, battle);
-                        (move as any).damage = attackResult.damage;
-						defender.hp = Math.max(0, defender.hp - attackResult.damage);
-						messageLog.push(attackResult.message);
-
-						if (attackResult.damage > 0) {
-							messageLog.push(`${defender.species} took ${attackResult.damage} damage!`);
-                            if (attackResult.isCritical) {
-                                const defenderAbility = AbilityHandler.getAbility(defender.ability);
-                                if (defenderAbility?.id === 'angerpoint') {
-                                    const defenderStages = defender.id === battle.activePokemon.id ? battle.playerStatStages : battle.wildStatStages;
-                                    if (defenderStages.atk < 6) {
-                                        defenderStages.atk = 6;
-                                        messageLog.push(`${defender.species}'s Anger Point maxed its Attack!`);
-                                    }
-                                }
-                            }
-                            if (!battle.isAbilitySuppressed) {
-                                messageLog.push(...AbilityHandler.handleOnDamagingHit(defender, attacker, move, battle));
-                            }
-						}
 					}
+					
 					if (wildPokemon.hp <= 0 || playerPokemon.hp <= 0) break;
 				}
 
-                battle.isAbilitySuppressed = false;
 				if (wildPokemon.hp > 0 && playerPokemon.hp > 0) {
-					// Status damage (burn, poison)
 					const endTurnOrder = [playerPokemon, wildPokemon];
 					for (const pokemon of endTurnOrder) {
 						if (pokemon.hp <= 0) continue;
 						const status = (pokemon === playerPokemon) ? battle.playerStatus : battle.wildStatus;
 						if (status === 'brn' || status === 'psn') {
-							const damage = Math.max(1, Math.floor(pokemon.maxHp / (status === 'psn' ? 8 : 16)));
+							const divisor = (status === 'psn') ? 8 : 16;
+							const damage = Math.max(1, Math.floor(pokemon.maxHp / divisor));
 							pokemon.hp = Math.max(0, pokemon.hp - damage);
-							messageLog.push(`${pokemon.species} was hurt by its status!`);
+							const statusName = status === 'brn' ? 'burn' : 'poison';
+							messageLog.push(`${pokemon.species} was hurt by its ${statusName}!`);
 						}
 					}
-                    // Residual abilities
-                    messageLog.push(...AbilityHandler.handleOnResidual(playerPokemon, battle));
-                    messageLog.push(...AbilityHandler.handleOnResidual(wildPokemon, battle));
-                    
-                    // General Terrain/Weather effects
-                    if (battle.terrain === 'Grassy') {
-                        for (const pokemon of endTurnOrder) {
-                            if (pokemon.hp > 0 && pokemon.hp < pokemon.maxHp && isGrounded(pokemon)) {
-                                pokemon.hp = Math.min(pokemon.maxHp, pokemon.hp + Math.floor(pokemon.maxHp / 16));
-                                messageLog.push(`${pokemon.species} healed a little from the Grassy Terrain!`);
-                            }
-                        }
-                    }
-                    if (battle.weather === 'Sand') {
-                        for (const pokemon of endTurnOrder) {
-                            const isImmune = pokemon.types.includes('Rock') || pokemon.types.includes('Ground') || pokemon.types.includes('Steel') || ['sandveil', 'sandrush', 'sandforce', 'overcoat'].includes(toID(pokemon.ability));
-                            if (pokemon.hp > 0 && !isImmune) {
-                                pokemon.hp = Math.max(0, pokemon.hp - Math.floor(pokemon.maxHp / 16));
-                                messageLog.push(`${pokemon.species} is buffeted by the sandstorm!`);
-                            }
-                        }
-                    }
-                    if (battle.weather === 'Hail' || battle.weather === 'Snow') {
-                         for (const pokemon of endTurnOrder) {
-                            const isImmune = pokemon.types.includes('Ice') || ['icebody', 'snowcloak', 'slushrush', 'overcoat'].includes(toID(pokemon.ability));
-                            if (pokemon.hp > 0 && !isImmune) {
-                                pokemon.hp = Math.max(0, pokemon.hp - Math.floor(pokemon.maxHp / 16));
-                                messageLog.push(`${pokemon.species} is buffeted by the hail!`);
-                            }
-                        }
-                    }
 				}
 
 				if (wildPokemon.hp <= 0) {
@@ -1463,55 +1367,41 @@ export const commands: ChatCommands = {
 				const battle = activeBattles.get(user.id);
 				if (!battle) return this.errorReply("You are not in a battle.");
 				const player = getPlayerData(battle.playerId);
+
 				const pokemonId = target.trim();
 				const nextPokemon = player.party.find(p => p.id === pokemonId && p.hp > 0);
-				if (!nextPokemon || nextPokemon.id === battle.activePokemon.id) return this.errorReply("Invalid switch choice.");
+				if (!nextPokemon) return this.errorReply("Invalid Pokemon or it has fainted.");
+				if (nextPokemon.id === battle.activePokemon.id) return this.errorReply("This Pokemon is already in battle.");
 				
+				// Save status of the pokemon switching out
 				const oldPokemonInParty = player.party.find(p => p.id === battle.activePokemon.id);
 				if (oldPokemonInParty) {
-                    if (battle.playerStatus === 'slp' || battle.playerStatus === 'frz') {
+					if (battle.playerStatus === 'slp' || battle.playerStatus === 'frz') {
 						oldPokemonInParty.status = null;
 					} else {
 						oldPokemonInParty.status = battle.playerStatus;
 					}
-                }
+				}
+
 				battle.activePokemon = nextPokemon;
-				battle.playerStatus = nextPokemon.status;
+				battle.playerStatus = nextPokemon.status; // Load status of incoming pokemon
 				battle.playerStatStages = { atk: 0, def: 0, spa: 0, spd: 0, spe: 0 };
 				battle.turn++;
 				
-				let messageLog = [`Go, ${nextPokemon.species}!`];
-                messageLog.push(...AbilityHandler.handleOnSwitchIn(nextPokemon, battle.wildPokemon, battle));
-                
+				const messageLog = [`Go, ${nextPokemon.species}!`];
 				const wildMoveData = battle.wildPokemon.moves[Math.floor(Math.random() * battle.wildPokemon.moves.length)];
-				const wildResult = calculateDamage(battle.wildPokemon, battle.activePokemon, wildMoveData, battle);
+				const wildResult = calculateDamage(battle.wildPokemon, battle.activePokemon, wildMoveData.id, battle.wildStatStages, battle.playerStatStages, battle.wildStatus);
 				battle.activePokemon.hp = Math.max(0, battle.activePokemon.hp - wildResult.damage);
 				messageLog.push(wildResult.message);
 				if (wildResult.damage > 0) messageLog.push(`${battle.activePokemon.species} took ${wildResult.damage} damage!`);
 				this.sendReply(`|uhtmlchange|rpg-${user.id}|${generateBattleHTML(battle, messageLog)}`);
 			},
-			'run'(target, room, user) {
-				const battle = activeBattles.get(user.id);
-				if (!battle) return this.errorReply("You are not in a battle.");
-                
-                // This part, which checks for trapping abilities, is correct.
-                if (AbilityHandler.trapCheck(battle.activePokemon, battle.wildPokemon)) {
-                    this.sendReply(`|uhtmlchange|rpg-${user.id}|${generateBattleHTML(battle, ["You can't escape!"])}`);
-                    return;
-                }
-
-				saveBattleStatus(battle);
-				activeBattles.delete(user.id);
-                // CORRECTED: Restored the original success message with action buttons.
-				this.sendReply(`|uhtmlchange|rpg-${user.id}|<div class="infobox"><h2>Got away safely!</h2><p>You ran away from the wild Pokemon.</p><p><button name="send" value="/rpg wildpokemon" class="button">Find Another</button><button name="send" value="/rpg explore" class="button">Continue Exploring</button></p></div>`);
-			},
-            'catchmenu'(target, room, user) {
+			'catchmenu'(target, room, user) {
                 const battle = activeBattles.get(user.id);
                 if (!battle) return this.errorReply("You are not in a battle.");
                 const player = getPlayerData(battle.playerId);
                 this.sendReply(`|uhtmlchange|rpg-${user.id}|${generateCatchMenuHTML(player, battle)}`);
             },
-
 			'catch'(target, room, user) {
 				const battle = activeBattles.get(user.id);
 				if (!battle) return this.errorReply("You are not in a battle.");
@@ -1564,12 +1454,12 @@ export const commands: ChatCommands = {
 					let successMessage = `<h2>Gotcha!</h2><p><strong>${caughtPokemon.species}</strong> was caught!</p>`;
                     if (ballId === 'healball') successMessage += `<p>${caughtPokemon.species} was fully healed!</p>`;
 
-					this.sendReply(`|uhtmlchange|rpg-${user.id}|<div class="infobox">${successMessage}${generatePokemonInfoHTML(caughtPokemon)}<p>${caughtPokemon.species} has been sent to ${location}.</p><p><button name="send" value="/rpg wildpokemon" class="button">Find Another</button><button name="send" value="/rpg party" class="button">View Party</button><button name="send" value="/rpg pc" class="button">Go to PC</button><button name="send" value="/rpg menu" class="button">Back to Menu</button></p></div>`);
+					this.sendReply(`|uhtmlchange|rpg-${user.id}|<div class="infobox">${successMessage}${generatePokemonInfoHTML(caughtPokemon)}<p>${caughtPokemon.species} has been sent to ${location}.</p><p><button name="send" value="/rpg wildpokemon" class="button">Find Another</button><button name="send" value="/rpg menu" class="button">Back to Menu</button></p></div>`);
 				} else {
 					messageLog.push(shakeMessages[catchResult.shakes]);
 
 					const wildMoveData = battle.wildPokemon.moves[Math.floor(Math.random() * battle.wildPokemon.moves.length)];
-					const wildResult = calculateDamage(battle.wildPokemon, battle.activePokemon, wildMoveData, battle);
+					const wildResult = calculateDamage(battle.wildPokemon, battle.activePokemon, wildMoveData.id, battle.wildStatStages, battle.playerStatStages, battle.wildStatus);
 					battle.activePokemon.hp = Math.max(0, battle.activePokemon.hp - wildResult.damage);
 					messageLog.push(wildResult.message);
 					if (wildResult.damage > 0) {
@@ -1590,18 +1480,25 @@ export const commands: ChatCommands = {
 					this.sendReply(`|uhtmlchange|rpg-${user.id}|${generateBattleHTML(battle, messageLog)}`);
 				}
 			},
-			
+			'run'(target, room, user) {
+				const battle = activeBattles.get(user.id);
+				if (!battle) return this.errorReply("You are not in a battle.");
+				saveBattleStatus(battle);
+				activeBattles.delete(user.id);
+				this.sendReply(`|uhtmlchange|rpg-${user.id}|<div class="infobox"><h2>Got away safely!</h2><p>You ran away from the wild Pokemon.</p><p><button name="send" value="/rpg wildpokemon" class="button">Find Another</button><button name="send" value="/rpg explore" class="button">Continue Exploring</button></p></div>`);
+			},
 			'back'(target, room, user) {
 				const battle = activeBattles.get(user.id);
 				if (battle) {
 					this.sendReply(`|uhtmlchange|rpg-${user.id}|${generateBattleHTML(battle, ["You returned to the battle."])}`);
 				}
 			},
-			
 			'': 'help',
-			help() { this.sendReply("Battle commands: /rpg battleaction [move|switch|catchmenu|run]"); }
+			help() {
+				this.sendReply("Battle commands: /rpg battleaction [move|switch|catchmenu|run]");
+			}
 		},
-		
+
 		explore(target, room, user) {
 			if (activeBattles.has(user.id)) {
 				return this.errorReply("You cannot explore during a battle.");
@@ -1624,16 +1521,16 @@ export const commands: ChatCommands = {
 				}
 			}
 		
-			// CORRECTED: Restored the full Pokémon Center message and navigational buttons
 			const healHTML = `<div class="infobox"><h2>Pokemon Healed!</h2><p>Welcome to the Pokémon Center. We've restored your Pokémon to full health.</p><p>We hope to see you again!</p><p><button name="send" value="/rpg party" class="button">View Party</button><button name="send" value="/rpg explore" class="button">Explore</button></p></div>`;
 			this.sendReply(`|uhtmlchange|rpg-${user.id}|${healHTML}`);
 		},
-		
-		help() { return this.parse('/help rpg'); },
+
+		help() {
+			return this.parse('/help rpg');
+		},
 		'': 'help',
 	},
 };
-
 
 export const helpData = [
 	"/rpg start - Start your Pokemon RPG adventure",
