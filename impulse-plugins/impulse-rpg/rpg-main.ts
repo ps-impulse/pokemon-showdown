@@ -440,6 +440,34 @@ function generateInventoryHTML(player: PlayerData, category?: string): string {
 	return html;
 }
 
+function generateSwitchMenuHTML(battle: BattleState): string {
+	let html = `<div class="infobox"><h2>Choose a Pokémon to switch to</h2><p>Select a Pokémon. This will use your turn.</p>`;
+	const player = getPlayerData(battle.playerId);
+	let switchableFound = false;
+
+	for (const pokemon of player.party) {
+		let content = `<strong>${pokemon.species}</strong> (Lvl ${pokemon.level}) | HP: ${pokemon.hp}/${pokemon.maxHp}`;
+		let button = '';
+
+		if (pokemon.hp <= 0) {
+			button = `<span style="float: right; color: #888;">Fainted</span>`;
+		} else if (pokemon.id === battle.activePokemon.id) {
+			button = `<span style="float: right; color: #888;">Active</span>`;
+		} else {
+			button = `<button name="send" value="/rpg battleaction playerswitch ${pokemon.id}" class="button" style="float: right;">Switch In</button>`;
+			switchableFound = true;
+		}
+		html += `<div style="border: 1px solid #ccc; padding: 8px; margin: 5px 0; border-radius: 5px; overflow: hidden;">${content}${button}</div>`;
+	}
+
+	if (!switchableFound && player.party.filter(p => p.hp > 0).length > 1) {
+		html += `<p>There are no other Pokémon to switch to!</p>`;
+	}
+
+	html += `<hr /><p><button name="send" value="/rpg battleaction back" class="button">Back to Battle</button></p></div>`;
+	return html;
+}
+
 function getBallBonus(ballId: string, battle: BattleState): number {
     const { wildPokemon, activePokemon, turn, wildStatus } = battle;
     const wildSpecies = Dex.species.get(wildPokemon.species);
@@ -724,7 +752,7 @@ function generateBattleHTML(battle: BattleState, messageLog: string[] = []): str
         return `<button name="send" value="/rpg battleaction move ${move.id}" class="button" ${isDisabled ? 'disabled style="background-color:#888;"' : ''}>${moveData.name}<br><small>PP: ${move.pp} / ${moveData.pp}</small></button>`;
     }).join('');
 
-	return `<div class="infobox"><h2>Wild Battle!</h2><div style="display: flex; justify-content: space-around;"><div><h3>Your Pokemon</h3>${generatePokemonInfoHTML(battle.activePokemon, false, battle.playerStatus, battle.playerStatStages)}</div><div><h3>Wild Pokemon</h3>${generatePokemonInfoHTML(battle.wildPokemon, false, battle.wildStatus, battle.wildStatStages)}</div></div><hr /><div style="padding: 5px; margin: 10px 0; border: 1px solid #666; background: #f0f0f0; min-height: 50px;">${messageLog.join('<br>')}</div><p>What will ${battle.activePokemon.species} do?</p><div style="display: grid; grid-template-columns: repeat(2, 1fr); gap: 5px;">${moveButtons}</div><p style="margin-top: 15px;"><button name="send" value="/rpg battleaction catchmenu" class="button">⚽ Catch</button><button name="send" value="/rpg battleaction run" class="button">🏃 Run</button></p></div>`;
+	return `<div class="infobox"><h2>Wild Battle!</h2><div style="display: flex; justify-content: space-around;"><div><h3>Your Pokemon</h3>${generatePokemonInfoHTML(battle.activePokemon, false, battle.playerStatus, battle.playerStatStages)}</div><div><h3>Wild Pokemon</h3>${generatePokemonInfoHTML(battle.wildPokemon, false, battle.wildStatus, battle.wildStatStages)}</div></div><hr /><div style="padding: 5px; margin: 10px 0; border: 1px solid #666; background: #f0f0f0; min-height: 50px;">${messageLog.join('<br>')}</div><p>What will ${battle.activePokemon.species} do?</p><div style="display: grid; grid-template-columns: repeat(2, 1fr); gap: 5px;">${moveButtons}</div><p style="margin-top: 15px;"><button name="send" value="/rpg battleaction switchmenu" class="button">🔄 Switch</button><button name="send" value="/rpg battleaction catchmenu" class="button">⚽ Catch</button><button name="send" value="/rpg battleaction run" class="button">🏃 Run</button></p></div>`;
 }
 
 function generateCatchMenuHTML(player: PlayerData, battle: BattleState): string {
@@ -761,7 +789,7 @@ function generateSwitchPokemonHTML(battle: BattleState, message: string): string
 	const player = getPlayerData(battle.playerId);
 	for (const pokemon of player.party) {
 		if (pokemon.hp > 0) {
-			html += `<div style="border: 1px solid #ccc; padding: 8px; margin: 5px; border-radius: 5px;"><strong>${pokemon.species}</strong> (Lvl ${pokemon.level}) | HP: ${pokemon.hp}/${pokemon.maxHp}<button name="send" value="/rpg battleaction switch ${pokemon.id}" class="button" style="float: right;">Switch In</button></div>`;
+			html += `<div style="border: 1px solid #ccc; padding: 8px; margin: 5px; border-radius: 5px;"><strong>${pokemon.species}</strong> (Lvl ${pokemon.level}) | HP: ${pokemon.hp}/${pokemon.maxHp}<button name="send" value="/rpg battleaction forceswitch ${pokemon.id}" class="button" style="float: right;">Switch In</button></div>`;
 		}
 	}
 	html += `</div>`;
@@ -1433,7 +1461,7 @@ export const commands: ChatCommands = {
 				this.sendReply(`|uhtmlchange|rpg-${user.id}|${generateBattleHTML(battle, messageLog)}`);
 			},
 
-			'switch'(target, room, user) {
+			/*'switch'(target, room, user) {
 				const battle = activeBattles.get(user.id);
 				if (!battle) return this.errorReply("You are not in a battle.");
 				const player = getPlayerData(battle.playerId);
@@ -1473,6 +1501,75 @@ export const commands: ChatCommands = {
 					}
 				}
 				
+				this.sendReply(`|uhtmlchange|rpg-${user.id}|${generateBattleHTML(battle, messageLog)}`);
+			},*/
+
+			forceswitch(target, room, user) { // Renamed from 'switch'
+				const battle = activeBattles.get(user.id);
+				if (!battle) return this.errorReply("You are not in a battle.");
+				// This command is now only for when a Pokémon faints and a switch is required.
+				if (battle.activePokemon.hp > 0) return this.errorReply("You can only use this command when your Pokémon has fainted.");
+				const player = getPlayerData(battle.playerId);
+
+				const pokemonId = target.trim();
+				const nextPokemon = player.party.find(p => p.id === pokemonId && p.hp > 0);
+				if (!nextPokemon) return this.errorReply("Invalid Pokemon or it has fainted.");
+				if (nextPokemon.id === battle.activePokemon.id) return this.errorReply("This Pokemon has fainted.");
+				
+				// The old Pokémon has 0 HP, so no need to save its state.
+				battle.activePokemon = nextPokemon;
+				battle.playerStatus = nextPokemon.status; 
+				battle.playerStatStages = { atk: 0, def: 0, spa: 0, spd: 0, spe: 0 };
+				
+				const messageLog = [`You sent out ${nextPokemon.species}!`];
+				this.sendReply(`|uhtmlchange|rpg-${user.id}|${generateBattleHTML(battle, messageLog)}`);
+			},
+			switchmenu(target, room, user) {
+				const battle = activeBattles.get(user.id);
+				if (!battle) return this.errorReply("You are not in a battle.");
+				this.sendReply(`|uhtmlchange|rpg-${user.id}|${generateSwitchMenuHTML(battle)}`);
+			},
+			playerswitch(target, room, user) {
+				const battle = activeBattles.get(user.id);
+				if (!battle) return this.errorReply("You are not in a battle.");
+				const player = getPlayerData(battle.playerId);
+
+				const pokemonId = target.trim();
+				const nextPokemon = player.party.find(p => p.id === pokemonId && p.hp > 0);
+
+				if (!nextPokemon) return this.errorReply("Invalid Pokemon or it has fainted.");
+				if (nextPokemon.id === battle.activePokemon.id) return this.errorReply("This Pokemon is already in battle.");
+				
+				// This is a strategic switch, so it uses the player's turn.
+				saveBattleStatus(battle); // Save the state of the outgoing Pokémon
+
+				battle.activePokemon = nextPokemon;
+				battle.playerStatus = nextPokemon.status;
+				battle.playerStatStages = { atk: 0, def: 0, spa: 0, spd: 0, spe: 0 };
+				battle.turn++;
+				
+				const messageLog = [`${player.name} withdrew ${oldPokemonInParty.species} and sent out ${nextPokemon.species}!`];
+
+				// The opponent gets to attack.
+				const wildMoveData = battle.wildPokemon.moves[Math.floor(Math.random() * battle.wildPokemon.moves.length)];
+				const wildResult = calculateDamage(battle.wildPokemon, battle.activePokemon, wildMoveData.id, battle.wildStatStages, battle.playerStatStages, battle.wildStatus);
+				battle.activePokemon.hp = Math.max(0, battle.activePokemon.hp - wildResult.damage);
+				messageLog.push(wildResult.message);
+				if (wildResult.damage > 0) messageLog.push(`${battle.activePokemon.species} took ${wildResult.damage} damage!`);
+
+				// Check if the newly switched-in Pokémon fainted immediately.
+				if (battle.activePokemon.hp <= 0) {
+					if (!player.party.some(p => p.hp > 0)) {
+						saveBattleStatus(battle);
+						activeBattles.delete(user.id);
+						const moneyLost = Math.min(player.money, 100);
+						player.money -= moneyLost;
+						return this.sendReply(`|uhtmlchange|rpg-${user.id}|${generateDefeatHTML(moneyLost)}`);
+					} else {
+						return this.sendReply(`|uhtmlchange|rpg-${user.id}|${generateSwitchPokemonHTML(battle, "Choose another Pokemon to switch to.")}`);
+					}
+				}
+
 				this.sendReply(`|uhtmlchange|rpg-${user.id}|${generateBattleHTML(battle, messageLog)}`);
 			},
 
